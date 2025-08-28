@@ -1,0 +1,974 @@
+{
+  "info": {
+    "name": "AI Study Helper Backend API - Complete Collection",
+    "description": "Complete API collection for testing the AI Study Helper backend with all endpoints including OCR/NLP pipeline, chat, sessions, bookmarks, calendar, and more",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "quizId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "imageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookmarkId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "calendarEntryId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('authToken', response.token);",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('authToken', response.token);",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dev Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/dev-login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "dev-login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('authToken', response.token);",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Image Upload & Processing",
+      "item": [
+        {
+          "name": "Upload Image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('imageId', response.imageId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Image Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/upload/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload", "{{imageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Image",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/upload/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload", "{{imageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Process Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": \"{{imageId}}\",\n  \"userId\": \"{{userId}}\",\n  \"options\": {\n    \"chunkSize\": 300,\n    \"overlap\": 50,\n    \"convertToGrayscale\": true,\n    \"adaptiveThreshold\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/process",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "process"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('sessionId', response.session.sessionId);",
+                  "    pm.collectionVariables.set('quizId', response.quiz.quizId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Processing Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/process/status/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "process", "status", "{{imageId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sessions",
+      "item": [
+        {
+          "name": "Get User Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions"]
+            }
+          }
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Reopen Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}/reopen",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}", "reopen"]
+            }
+          }
+        },
+        {
+          "name": "Get Latest Mindmap",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/mindmap/latest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "mindmap", "latest"]
+            }
+          }
+        },
+        {
+          "name": "Update Session",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Study Session\",\n  \"description\": \"Updated description\",\n  \"status\": \"active\",\n  \"tags\": [\"updated\", \"study\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Like/Unlike Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"like\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}/like",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}", "like"]
+            }
+          }
+        },
+        {
+          "name": "Add Node to Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"concept\",\n  \"content\": \"New Concept Node\",\n  \"position\": {\n    \"x\": 100,\n    \"y\": 100\n  },\n  \"metadata\": {\n    \"confidence\": 0.9\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}/nodes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}", "nodes"]
+            }
+          }
+        },
+        {
+          "name": "Add Edge to Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": \"node_1\",\n  \"target\": \"node_2\",\n  \"label\": \"relates to\",\n  \"type\": \"related\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/{{sessionId}}/edges",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "{{sessionId}}", "edges"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quizzes",
+      "item": [
+        {
+          "name": "Generate Quiz from Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "{{imageId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('quizId', response.quizId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Quiz by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/id/{{quizId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "id", "{{quizId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get User Quizzes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "user", "{{userId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat & RAG",
+      "item": [
+        {
+          "name": "Get Chat History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "history"]
+            }
+          }
+        },
+        {
+          "name": "Chat with RAG",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Can you explain the concept in node 2?\",\n  \"sessionId\": \"{{sessionId}}\",\n  \"imageId\": \"{{imageId}}\",\n  \"context\": \"study_session\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/rag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "rag"]
+            }
+          }
+        },
+        {
+          "name": "Clear Chat History",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "history"]
+            }
+          }
+        },
+        {
+          "name": "Chat Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Semantic Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/semantic?q=mathematics&userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "semantic"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "mathematics"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Text Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/text?q=formula&userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "text"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "formula"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Advanced Search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mathematics\",\n  \"filters\": {\n    \"dateRange\": {\n      \"start\": \"2024-01-01\",\n      \"end\": \"2024-12-31\"\n    },\n    \"tags\": [\"important\"],\n    \"type\": \"session\"\n  },\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/search/advanced",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "advanced"]
+            }
+          }
+        },
+        {
+          "name": "Get Search Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/suggestions?q=math&userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "suggestions"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "math"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookmarks",
+      "item": [
+        {
+          "name": "Create Bookmark",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refType\": \"session\",\n  \"refId\": \"{{sessionId}}\",\n  \"title\": \"Important Study Session\",\n  \"description\": \"This session contains key concepts I need to review\",\n  \"note\": \"Focus on nodes 2 and 3\",\n  \"priority\": \"high\",\n  \"tags\": [\"important\", \"review\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('bookmarkId', response.bookmark._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User Bookmarks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks"]
+            }
+          }
+        },
+        {
+          "name": "Search Bookmarks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks/search?q=important",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "important"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Bookmark Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Bookmark by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks/{{bookmarkId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks", "{{bookmarkId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Bookmark",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Important Study Session\",\n  \"description\": \"Updated description\",\n  \"priority\": \"medium\",\n  \"tags\": [\"updated\", \"important\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks/{{bookmarkId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks", "{{bookmarkId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Bookmark",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookmarks/{{bookmarkId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookmarks", "{{bookmarkId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Calendar",
+      "item": [
+        {
+          "name": "Create Calendar Entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Study Session\",\n  \"description\": \"Review mathematics concepts\",\n  \"startTime\": \"2024-12-20T10:00:00Z\",\n  \"endTime\": \"2024-12-20T11:00:00Z\",\n  \"type\": \"study\",\n  \"priority\": \"high\",\n  \"reminder\": true,\n  \"reminderTime\": \"2024-12-20T09:45:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "create"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('calendarEntryId', response.entry._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Calendar Entries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/entries",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "entries"]
+            }
+          }
+        },
+        {
+          "name": "Get Upcoming Entries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/upcoming",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "upcoming"]
+            }
+          }
+        },
+        {
+          "name": "Get Calendar Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Update Calendar Entry",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Study Session\",\n  \"description\": \"Updated description\",\n  \"startTime\": \"2024-12-20T11:00:00Z\",\n  \"endTime\": \"2024-12-20T12:00:00Z\",\n  \"priority\": \"medium\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/entry/{{calendarEntryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "entry", "{{calendarEntryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Calendar Entry",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/entry/{{calendarEntryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "entry", "{{calendarEntryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Entries",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"title\": \"Study Session 1\",\n    \"description\": \"Mathematics review\",\n    \"startTime\": \"2024-12-21T10:00:00Z\",\n    \"endTime\": \"2024-12-21T11:00:00Z\",\n    \"type\": \"study\"\n  },\n  {\n    \"title\": \"Study Session 2\",\n    \"description\": \"Physics review\",\n    \"startTime\": \"2024-12-22T14:00:00Z\",\n    \"endTime\": \"2024-12-22T15:00:00Z\",\n    \"type\": \"study\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/bulk-create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "bulk-create"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "item": [
+        {
+          "name": "Create/Update Note",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Study Notes\",\n  \"content\": \"Important notes about mathematics concepts\",\n  \"tags\": [\"math\", \"important\", \"study\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notes/note_123",
+              "host": ["{{baseUrl}}"],
+              "path": ["notes", "note_123"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mindmap",
+      "item": [
+        {
+          "name": "Generate Mindmap from Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mindmap", "{{imageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Mindmap Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mindmap",
+              "host": ["{{baseUrl}}"],
+              "path": ["mindmap"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

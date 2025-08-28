@@ -1,0 +1,54 @@
+{
+  "name": "ai-study-helper-backend",
+  "version": "2.0.0",
+  "description": "AI-powered study assistant with vision processing, semantic search, and advanced learning tools",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "setup": "node setup-env.js",
+    "test": "jest",
+    "test:openrouter": "node test-openrouter.js",
+    "test:config": "node test-configuration.js",
+    "test:vision": "node test-simple-vision.js",
+    "test:vision:full": "node test-llama-vision.js",
+    "test:embedding": "node test-embedding-fix.js"
+  },
+  "keywords": [
+    "ai",
+    "education",
+    "vision-processing",
+    "semantic-search",
+    "mind-mapping",
+    "quiz-generation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.32.5",
+    "cloudinary": "^1.40.0",
+    "axios": "^1.5.0",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "compression": "^1.7.4",
+    "express-rate-limit": "^6.10.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "tesseract.js": "^4.1.1",
+    "node-cron": "^3.0.2",
+    "uuid": "^9.0.0",
+    "moment": "^2.29.4",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.6.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
