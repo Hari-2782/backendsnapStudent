@@ -20,17 +20,17 @@ if (process.env.NODE_ENV === 'development') {
 router.post('/', flexibleUpload, uploadImage);
 
 /**
- * @route   GET /api/upload/:fileId
+ * @route   GET /api/upload/:imageId
  * @desc    Get file information by ID
  * @access  Private
  */
-router.get('/:fileId', getImage);
+router.get('/:imageId', getImage);
 
 /**
- * @route   DELETE /api/upload/:fileId
+ * @route   DELETE /api/upload/:imageId
  * @desc    Delete a file
  * @access  Private
  */
-router.delete('/:fileId', deleteImage);
+router.delete('/:imageId', deleteImage);
 
 module.exports = router;

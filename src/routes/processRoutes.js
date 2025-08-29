@@ -15,10 +15,10 @@ const router = express.Router();
 router.post('/', processController.processFile.bind(processController));
 
 /**
- * @route   GET /api/process/status/:fileId
+ * @route   GET /api/process/status/:imageId
  * @desc    Get processing status for a file
  * @access  Public (for development testing)
  */
-router.get('/status/:fileId', processController.getProcessingStatus.bind(processController));
+router.get('/status/:imageId', processController.getProcessingStatus.bind(processController));
 
 module.exports = router;

@@ -14,8 +14,7 @@ const generateMindmap = async (req, res) => {
     // Get evidence records for this image
     const evidence = await Evidence.find({ 
       $or: [
-        { originalImageId: imageId },
-        { originalFileId: imageId }
+        { originalImageId: imageId }
       ]
     }).sort({ createdAt: -1 });
 
@@ -95,8 +94,7 @@ const getMindmap = async (req, res) => {
 
     const evidence = await Evidence.find({ 
       $or: [
-        { originalImageId: imageId },
-        { originalFileId: imageId }
+        { originalImageId: imageId }
       ]
     }).sort({ createdAt: -1 });
 
@@ -142,8 +140,7 @@ const explainNode = async (req, res) => {
 
     const evidence = await Evidence.find({ 
       $or: [
-        { originalImageId: imageId },
-        { originalFileId: imageId }
+        { originalImageId: imageId }
       ]
     }).sort({ createdAt: -1 });
 
@@ -220,8 +217,7 @@ const explainMindmap = async (req, res) => {
 
     const evidence = await Evidence.find({ 
       $or: [
-        { originalImageId: imageId },
-        { originalFileId: imageId }
+        { originalImageId: imageId }
       ]
     }).sort({ createdAt: -1 });
 

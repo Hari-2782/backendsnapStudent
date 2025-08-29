@@ -186,25 +186,25 @@ const preprocessImage = async (buffer) => {
 
 /**
  * Get file by ID
- * @route GET /api/upload/:fileId
+ * @route GET /api/upload/:imageId
  * @access Private
  */
 const getImage = async (req, res) => {
   try {
-    const { fileId } = req.params;
+    const { imageId } = req.params;
     
     // Construct the full Cloudinary ID with folder
-    const fullFileId = `ai-study-helper/${fileId}`;
+    const fullImageId = `ai-study-helper/${imageId}`;
     
     // Try to get file info from Cloudinary (try both image and raw)
     let result;
     let resourceType = 'image';
     
     try {
-      result = await cloudinary.api.resource(fullFileId, { resource_type: 'image' });
+      result = await cloudinary.api.resource(fullImageId, { resource_type: 'image' });
     } catch (imageError) {
       try {
-        result = await cloudinary.api.resource(fullFileId, { resource_type: 'raw' });
+        result = await cloudinary.api.resource(fullImageId, { resource_type: 'raw' });
         resourceType = 'raw';
       } catch (rawError) {
         throw new Error('File not found');
@@ -212,7 +212,7 @@ const getImage = async (req, res) => {
     }
     
     const responseData = {
-      id: fileId, // Return the clean ID
+      id: imageId, // Return the clean ID
       cloudinaryId: result.public_id, // Full Cloudinary ID
       url: result.secure_url,
       size: result.bytes,
@@ -243,24 +243,24 @@ const getImage = async (req, res) => {
 
 /**
  * Delete file
- * @route DELETE /api/upload/:fileId
+ * @route DELETE /api/upload/:imageId
  * @access Private
  */
 const deleteImage = async (req, res) => {
   try {
-    const { fileId } = req.params;
+    const { imageId } = req.params;
     
     // Construct the full Cloudinary ID with folder
-    const fullFileId = `ai-study-helper/${fileId}`;
+    const fullImageId = `ai-study-helper/${imageId}`;
     
     // Try to delete from Cloudinary (try both image and raw)
     let result;
     
     try {
-      result = await cloudinary.uploader.destroy(fullFileId, { resource_type: 'image' });
+      result = await cloudinary.uploader.destroy(fullImageId, { resource_type: 'image' });
     } catch (imageError) {
       try {
-        result = await cloudinary.uploader.destroy(fullFileId, { resource_type: 'raw' });
+        result = await cloudinary.uploader.destroy(fullImageId, { resource_type: 'raw' });
       } catch (rawError) {
         throw new Error('File not found');
       }

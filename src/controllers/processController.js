@@ -20,17 +20,17 @@ class ProcessController {
     const startTime = Date.now();
     
     try {
-      const { fileId, userId, options = {} } = req.body;
+      const { imageId, userId, options = {} } = req.body;
       const actualUserId = userId || req.user?._id || 'dev-user-123';
       
-      if (!fileId) {
-        return res.status(400).json(ApiResponse.error('fileId is required'));
+      if (!imageId) {
+        return res.status(400).json(ApiResponse.error('imageId is required'));
       }
 
-      console.log(`🚀 Starting file processing for user ${actualUserId}, file ${fileId}`);
+      console.log(`🚀 Starting file processing for user ${actualUserId}, file ${imageId}`);
       
       // 1. Get file buffer and metadata
-      const { fileBuffer, fileType, originalName } = await this.getFileBuffer(fileId);
+      const { fileBuffer, fileType, originalName } = await this.getFileBuffer(imageId);
       if (!fileBuffer) {
         return res.status(404).json(ApiResponse.notFound('File not found'));
       }
@@ -42,7 +42,7 @@ class ProcessController {
       if (fileType === 'image') {
         console.log('📸 Processing image file...');
         const ocrResult = await ocrService.processImageOptimized(fileBuffer, {
-          originalImageId: fileId,
+          originalImageId: imageId,
           ...options
         });
 
@@ -60,7 +60,7 @@ class ProcessController {
       } else if (fileType === 'pdf') {
         console.log('📄 Processing PDF file...');
         const pdfResult = await pdfService.processPDF(fileBuffer, {
-          originalFileId: fileId,
+          originalImageId: imageId,
           ...options
         });
 
@@ -83,7 +83,7 @@ class ProcessController {
 
       // 3. Save evidence records
       console.log('💾 Saving evidence records...');
-      const savedEvidenceRecords = await this.saveEvidenceRecordsOptimized(evidenceRecords, fileId, actualUserId);
+      const savedEvidenceRecords = await this.saveEvidenceRecordsOptimized(evidenceRecords, imageId, actualUserId);
 
       // 4. Extract text for summary
       const allText = savedEvidenceRecords.map(ev => ev.text).join(' ');
@@ -93,7 +93,7 @@ class ProcessController {
       const summary = await this.generateSummary(allText, savedEvidenceRecords);
 
       // 6. Generate embeddings for semantic search (async)
-      this.generateEmbeddingsAsync(allText, actualUserId, fileId);
+      this.generateEmbeddingsAsync(allText, actualUserId, imageId);
 
       // 7. Create session for this file processing
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -101,13 +101,13 @@ class ProcessController {
       const session = new Session({
         sessionId,
         userId: actualUserId,
-        title: `Study Session from ${fileType === 'pdf' ? 'PDF' : 'Image'} ${originalName || fileId}`,
+        title: `Study Session from ${fileType === 'pdf' ? 'PDF' : 'Image'} ${originalName || imageId}`,
         description: `Generated study session with ${savedEvidenceRecords.length} concepts from uploaded ${fileType}`,
         tags: ['auto-generated', `${fileType}-processing`],
         source: {
-          uploadFilename: originalName || fileId,
+          uploadFilename: originalName || imageId,
           fileType: fileType,
-          fileUrl: `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/${fileType === 'pdf' ? 'raw' : 'image'}/upload/${fileId}`
+          fileUrl: `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/${fileType === 'pdf' ? 'raw' : 'image'}/upload/${imageId}`
         },
         status: 'active'
       });
@@ -116,7 +116,7 @@ class ProcessController {
 
       // 8. Save processing result with summary
       const finalProcessingResult = {
-        fileId,
+        imageId,
         userId: actualUserId,
         sessionId: session.sessionId,
         summary,
@@ -130,7 +130,7 @@ class ProcessController {
 
       // Return standardized response with summary and evidence only
       return res.json(ApiResponse.success(`${fileType === 'pdf' ? 'PDF' : 'Image'} processed successfully`, {
-        fileId,
+        imageId,
         sessionId: session.sessionId,
         summary,
         evidence: savedEvidenceRecords.map(ev => ({
@@ -231,14 +231,14 @@ class ProcessController {
    */
   async getProcessingStatus(req, res) {
     try {
-      const { fileId } = req.params;
+      const { imageId } = req.params;
       
-      if (!fileId) {
-        return res.status(400).json(ApiResponse.error('fileId is required'));
+      if (!imageId) {
+        return res.status(400).json(ApiResponse.error('imageId is required'));
       }
 
       // Check if file exists and get status
-      const status = await this.getFileStatus(fileId);
+      const status = await this.getFileStatus(imageId);
       
       if (!status) {
         return res.status(404).json(ApiResponse.notFound('File not found'));
@@ -255,9 +255,9 @@ class ProcessController {
   /**
    * Optimized file buffer retrieval with caching
    */
-  async getFileBuffer(fileId) {
+  async getFileBuffer(imageId) {
     try {
-      console.log(`Fetching file buffer for ${fileId}`);
+      console.log(`Fetching file buffer for ${imageId}`);
       
       // Import cloudinary here to avoid circular dependencies
       const cloudinary = require('cloudinary').v2;
@@ -271,9 +271,9 @@ class ProcessController {
       
       // Try multiple ID formats systematically
       const possibleIds = [
-        fileId, // Original ID as-is
-        `ai-study-helper/${fileId}`, // With folder prefix
-        fileId.replace('ai-study-helper/', '') // Without folder prefix
+        imageId, // Original ID as-is
+        `ai-study-helper/${imageId}`, // With folder prefix
+        imageId.replace('ai-study-helper/', '') // Without folder prefix
       ];
       
       console.log(`🔍 Trying multiple ID formats:`, possibleIds);
@@ -291,7 +291,7 @@ class ProcessController {
             return {
               fileBuffer,
               fileType: 'image',
-              originalName: imageResult.original_filename || fileId
+              originalName: imageResult.original_filename || imageId
             };
           } catch (imageError) {
             console.log('❌ Not an image, trying as raw file...');
@@ -305,7 +305,7 @@ class ProcessController {
               return {
                 fileBuffer,
                 fileType: 'pdf',
-                originalName: rawResult.original_filename || fileId
+                originalName: rawResult.original_filename || imageId
               };
             } catch (rawError) {
               console.log(`❌ ID ${currentId} failed for both types`);
@@ -320,7 +320,7 @@ class ProcessController {
       }
       
       // If we get here, none of the ID formats worked
-      console.error('❌ All ID formats failed for file:', fileId);
+      console.error('❌ All ID formats failed for file:', imageId);
       return null;
       
     } catch (error) {
@@ -425,16 +425,16 @@ class ProcessController {
   /**
    * Optimized evidence records saving with batch operations
    */
-  async saveEvidenceRecordsOptimized(evidenceData, fileId, userId) {
+  async saveEvidenceRecordsOptimized(evidenceData, imageId, userId) {
     const evidenceRecords = [];
     
     // Batch create evidence records
     const evidencePromises = evidenceData.map(async (ev) => {
-      const fileUrl = ev.imageUrl || ev.fileUrl || `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/ai-study-helper/${fileId}`;
+      const fileUrl = ev.imageUrl || ev.fileUrl || `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/ai-study-helper/${imageId}`;
       
       const evidence = new Evidence({
         fileUrl: fileUrl,
-        originalFileId: fileId,
+        originalImageId: imageId,
         bbox: ev.bbox,
         text: ev.text,
         ocrConfidence: ev.ocrConfidence,
@@ -617,11 +617,11 @@ class ProcessController {
     };
   }
 
-  async getFileStatus(fileId) {
+  async getFileStatus(imageId) {
     // This should check your database
     // For now, return mock status
     return {
-      fileId,
+      imageId,
       status: 'completed',
       processedAt: new Date().toISOString()
     };

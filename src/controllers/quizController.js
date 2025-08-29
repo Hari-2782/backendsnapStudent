@@ -35,8 +35,7 @@ const generateQuiz = async (req, res) => {
     // Get evidence records for this image
     const evidence = await Evidence.find({ 
       $or: [
-        { originalImageId: imageId },
-        { originalFileId: imageId }
+        { originalImageId: imageId }
       ]
     }).sort({ createdAt: -1 });
 

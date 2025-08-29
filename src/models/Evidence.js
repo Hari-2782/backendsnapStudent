@@ -5,7 +5,7 @@ const evidenceSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  originalFileId: {
+  originalImageId: {
     type: String,
     required: true
   },
@@ -75,7 +75,7 @@ const evidenceSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-evidenceSchema.index({ originalFileId: 1 });
+evidenceSchema.index({ originalImageId: 1 });
 evidenceSchema.index({ ocrConfidence: 1 });
 evidenceSchema.index({ contentType: 1 });
 evidenceSchema.index({ 'usage.totalReferences': -1 });
