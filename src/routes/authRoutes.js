@@ -34,15 +34,12 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
     // Create new user
     const newUser = new User({
       username,
       email,
-      password: hashedPassword,
+      // Pass raw password; User model pre-save hook will hash once
+      password,
       isActive: true,
       role: 'user'
     });
@@ -94,8 +91,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email }).select('+password');
+    // Find user by email (normalize case)
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     if (!user) {
       return res.status(401).json({
         success: false,

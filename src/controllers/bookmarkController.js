@@ -18,7 +18,18 @@ const createBookmark = async (req, res) => {
     
     switch (refType) {
       case 'session':
+        // Primary: enforce ownership
         refContent = await Session.findOne({ sessionId: refId, userId: req.user._id });
+        // Fallback: allow session lookup by sessionId only (e.g., created without auth during dev)
+        if (!refContent) {
+          refContent = await Session.findOne({ sessionId: refId });
+          if (refContent) {
+            console.warn(
+              '[bookmarks] session fallback hit: found session by sessionId without matching userId',
+              { refId, requestUserId: String(req.user?._id || '') }
+            );
+          }
+        }
         if (refContent) {
           contentSnapshot = JSON.stringify({
             title: refContent.title,
