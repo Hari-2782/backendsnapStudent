@@ -325,25 +325,48 @@ class SessionController {
       const sessions = await Session.find({ userId }).sort({ createdAt: -1 });
       
       const enhancedSessions = sessions.map(session => {
-        const title = session.computeDisplayTitle ? session.computeDisplayTitle() : session.title;
-        const preview = this.generatePreview(session);
-        const type = session.nodes?.length > 0 ? 'mindmap' : 'chat';
-        const liked = session.likedBy?.some(id => id.toString() === userId.toString()) || false;
-        
-        return {
-          sessionId: session.sessionId,
-          title,
-          description: session.description,
-          preview,
-          type,
-          tags: session.tags || [],
-          likes: session.likes || 0,
-          liked,
-          createdAt: session.createdAt,
-          updatedAt: session.updatedAt,
-          chatCount: session.chat?.length || 0,
-          nodeCount: session.nodes?.length || 0
-        };
+        try {
+          // Safe method call with fallback
+          const title = typeof session.computeDisplayTitle === 'function' 
+            ? session.computeDisplayTitle() 
+            : (session.title || `Study Session ${session.sessionId}`);
+          
+          const preview = this.generatePreview(session);
+          const type = session.nodes?.length > 0 ? 'mindmap' : 'chat';
+          const liked = session.likedBy?.some(id => id.toString() === userId.toString()) || false;
+          
+          return {
+            sessionId: session.sessionId,
+            title,
+            description: session.description || '',
+            preview,
+            type,
+            tags: session.tags || [],
+            likes: session.likes || 0,
+            liked,
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            chatCount: session.chat?.length || 0,
+            nodeCount: session.nodes?.length || 0
+          };
+        } catch (sessionError) {
+          console.error('❌ Error processing session:', session.sessionId, sessionError);
+          // Return a safe fallback session object
+          return {
+            sessionId: session.sessionId || 'unknown',
+            title: session.title || 'Study Session',
+            description: session.description || '',
+            preview: 'Study session',
+            type: 'chat',
+            tags: [],
+            likes: 0,
+            liked: false,
+            createdAt: session.createdAt || new Date(),
+            updatedAt: session.updatedAt || new Date(),
+            chatCount: 0,
+            nodeCount: 0
+          };
+        }
       });
 
       return res.json(ApiResponse.success('Sessions retrieved successfully', {
@@ -360,30 +383,37 @@ class SessionController {
    * Generate preview text for session
    */
   generatePreview(session) {
-    // Try to get preview from chat messages
-    if (session.chat && session.chat.length > 0) {
-      const lastAssistantMessage = session.chat
-        .filter(msg => msg.role === 'assistant')
-        .pop();
-      
-      if (lastAssistantMessage) {
-        return lastAssistantMessage.text.substring(0, 100) + '...';
+    try {
+      // Try to get preview from chat messages
+      if (session.chat && session.chat.length > 0) {
+        const lastAssistantMessage = session.chat
+          .filter(msg => msg.role === 'assistant')
+          .pop();
+        
+        if (lastAssistantMessage && lastAssistantMessage.text) {
+          return lastAssistantMessage.text.substring(0, 100) + '...';
+        }
+        
+        const lastMessage = session.chat[session.chat.length - 1];
+        if (lastMessage && lastMessage.text) {
+          return lastMessage.text.substring(0, 100) + '...';
+        }
       }
       
-      const lastMessage = session.chat[session.chat.length - 1];
-      return lastMessage.text.substring(0, 100) + '...';
+      // Fallback to description or node content
+      if (session.description) {
+        return session.description;
+      }
+      
+      if (session.nodes && session.nodes.length > 0 && session.nodes[0].content) {
+        return session.nodes[0].content.substring(0, 100) + '...';
+      }
+      
+      return 'Study session';
+    } catch (error) {
+      console.error('❌ Error generating preview for session:', error);
+      return 'Study session';
     }
-    
-    // Fallback to description or node content
-    if (session.description) {
-      return session.description;
-    }
-    
-    if (session.nodes && session.nodes.length > 0) {
-      return session.nodes[0].content.substring(0, 100) + '...';
-    }
-    
-    return 'Study session';
   }
 }
 

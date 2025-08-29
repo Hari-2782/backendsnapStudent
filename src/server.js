@@ -64,7 +64,7 @@ console.log('   Allowed Origins:', [
 console.log('   Credentials:', 'enabled');
 console.log('   Methods:', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
 
-// CORS Configuration
+// CORS Configuration - Vercel Production Optimized
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -82,7 +82,7 @@ const corsOptions = {
       callback(null, true);
     } else {
       console.log('🚫 CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false); // Don't throw error, just block
     }
   },
   credentials: true,
@@ -104,23 +104,42 @@ const corsOptions = {
 // Middleware
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly
+// Vercel-specific CORS handling - BEFORE any other middleware
+app.use((req, res, next) => {
+  // Always set CORS headers for all requests in production
+  if (process.env.NODE_ENV === 'production') {
+    res.header('Access-Control-Allow-Origin', 'https://snapsstudy.netlify.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
+  }
+  next();
+});
+
+// Handle preflight requests explicitly - BEFORE other middleware
 app.options('*', (req, res) => {
+  // Set CORS headers for preflight
   res.header('Access-Control-Allow-Origin', 'https://snapsstudy.netlify.app');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
+  
+  // Always return 200 for preflight in production
   res.status(200).end();
 });
 
-// Add CORS headers to all responses
+// Add CORS headers to all API responses - AFTER preflight handling
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://snapsstudy.netlify.app');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400');
+  // Only add CORS headers for API routes
+  if (req.path.startsWith('/api/')) {
+    res.header('Access-Control-Allow-Origin', 'https://snapsstudy.netlify.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
+  }
   next();
 });
 

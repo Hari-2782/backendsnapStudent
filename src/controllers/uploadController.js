@@ -53,9 +53,11 @@ const uploadImage = async (req, res) => {
     // Cloudinary is already configured via cloudinaryService
 
     if (!req.file) {
+      console.error('❌ Upload error: No file provided in request');
       return res.status(400).json({
         success: false,
-        error: 'No file provided'
+        error: 'No file provided',
+        details: 'Please select a file to upload'
       });
     }
 
@@ -101,38 +103,47 @@ const uploadImage = async (req, res) => {
       uploadOptions,
       (error, result) => {
         if (error) {
-          console.error('Cloudinary upload error:', error);
+          console.error('❌ Cloudinary upload error:', error);
           return res.status(500).json({
             success: false,
-            error: 'Failed to upload file'
+            error: 'Failed to upload file',
+            details: error.message || 'Upload service error'
           });
         }
         
-        // Return success response
-        const responseData = {
-          id: `${userId}_${filename}`, // Clean ID without folder path
-          cloudinaryId: result.public_id, // Full Cloudinary ID for reference
-          url: result.secure_url,
-          size: result.bytes,
-          uploadedAt: new Date(),
-          userId: userId.toString(),
-          sessionId: sessionId || null,
-          tags: tags ? tags.split(',') : [],
-          fileType: mimetype.startsWith('image/') ? 'image' : 'pdf',
-          originalName: originalname
-        };
+        try {
+          // Return success response
+          const responseData = {
+            id: `${userId}_${filename}`, // Clean ID without folder path
+            cloudinaryId: result.public_id, // Full Cloudinary ID for reference
+            url: result.secure_url,
+            size: result.bytes,
+            uploadedAt: new Date(),
+            userId: userId.toString(),
+            sessionId: sessionId || null,
+            tags: tags ? tags.split(',') : [],
+            fileType: mimetype.startsWith('image/') ? 'image' : 'pdf',
+            originalName: originalname
+          };
 
-        // Add image-specific properties if it's an image
-        if (mimetype.startsWith('image/')) {
-          responseData.width = result.width;
-          responseData.height = result.height;
-          responseData.format = result.format;
+          // Add image-specific properties if it's an image
+          if (mimetype.startsWith('image/')) {
+            responseData.width = result.width;
+            responseData.height = result.height;
+            responseData.format = result.format;
+          }
+
+          res.status(201).json({
+            success: true,
+            file: responseData
+          });
+        } catch (responseError) {
+          console.error('❌ Error sending response:', responseError);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to process upload response'
+          });
         }
-
-        res.status(201).json({
-          success: true,
-          file: responseData
-        });
       }
     );
 
