@@ -163,8 +163,8 @@ out/
 .dockerignore
 docker-compose.override.yml
 
-# CI/CD
-.github/workflows/
+# CI/CD (keeping workflows for auto-deployment)
+# .github/workflows/
 
 # Local development
 .local/

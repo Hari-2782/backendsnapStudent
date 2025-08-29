@@ -140,3 +140,6 @@ app.listen(PORT, () => {
   console.log(`🤗 Hugging Face: ${process.env.HF_API_KEY ? 'Configured' : 'NOT CONFIGURED'}`);
   console.log(`☁️ Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME ? 'Configured' : 'NOT CONFIGURED'}`);
 });
+
+// Export for Vercel
+module.exports = app;
