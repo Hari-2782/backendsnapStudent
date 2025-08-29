@@ -1,542 +1,712 @@
 const Calendar = require('../models/Calendar');
-const Session = require('../models/Session');
-const MindMap = require('../models/MindMap');
-const Quiz = require('../models/Quiz');
+const { v4: uuidv4 } = require('uuid');
 
-class CalendarController {
-  /**
-   * Create a new calendar entry
-   */
-  async createCalendarEntry(req, res) {
-    try {
-      const userId = req.user._id;
-      const {
-        title,
-        subject,
-        topic,
-        startDate,
-        startTime, // Support both startDate and startTime
-        endDate,
-        endTime,   // Support both endDate and endTime
-        duration,
-        priority,
-        notes,
-        color,
-        emoji,
-        sessionId,
-        mindMapId,
-        quizId,
-        tags,
-        recurring,
-        reminders,
-        metadata
-      } = req.body;
+/**
+ * Create a new calendar task
+ * @route POST /api/calendar
+ * @access Private
+ */
+const createTask = async (req, res) => {
+  try {
+    const {
+      title,
+      subject,
+      topic,
+      startDate,
+      endDate,
+      duration,
+      priority,
+      status,
+      notes,
+      color,
+      emoji,
+      tags,
+      recurring,
+      reminders,
+      metadata
+    } = req.body;
 
-      // Validate required fields
-      if (!title) {
-        return res.status(400).json({
-          success: false,
-          error: 'Missing required field: title'
-        });
-      }
+    const userId = req.user._id;
 
-      if (!startDate && !startTime) {
-        return res.status(400).json({
-          success: false,
-          error: 'Missing required field: startDate or startTime'
-        });
-      }
+    // Validate required fields
+    if (!title || !subject || !topic || !startDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title, subject, topic, and startDate are required'
+      });
+    }
 
-      // Auto-generate subject and topic if not provided
-      const autoSubject = subject || 'Study Session';
-      const autoTopic = topic || 'General Review';
+    // Validate startDate
+    if (isNaN(new Date(startDate).getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid startDate format'
+      });
+    }
 
-      // Handle start date/time
-      let actualStartDate = startDate;
-      if (startTime && !startDate) {
-        actualStartDate = startTime;
-      }
+    // Validate duration if provided
+    if (duration && (duration < 15 || duration > 480)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Duration must be between 15 and 480 minutes'
+      });
+    }
 
-      // Handle end date/time
-      let actualEndDate = endDate;
-      if (endTime && !endDate) {
-        actualEndDate = endTime;
-      } else if (!actualEndDate) {
-        // Calculate end date if not provided
-        actualEndDate = new Date(new Date(actualStartDate).getTime() + (duration || 60) * 60000);
-      }
+    // Calculate endDate if not provided
+    const taskStartDate = new Date(startDate);
+    const taskDuration = duration || 60;
+    const taskEndDate = endDate ? new Date(endDate) : new Date(taskStartDate.getTime() + (taskDuration * 60 * 1000));
 
-      // Check for scheduling conflicts
-      const calendarEntry = new Calendar({
-        title,
-        subject: autoSubject,
-        topic: autoTopic,
-        startDate: new Date(actualStartDate),
-        endDate: new Date(actualEndDate),
-        duration: duration || 60,
-        priority: priority || 'medium',
-        notes,
-        color: color || '#2563eb',
-        emoji: emoji || '📚',
-        userId,
-        sessionId,
-        mindMapId,
-        quizId,
-        tags: tags || [],
-        recurring: recurring || { enabled: false },
-        reminders: reminders || [{ time: 15, type: 'notification' }],
-        metadata: {
-          ...metadata,
-          createdBy: req.user.username || req.user.email
+    // Check for scheduling conflicts
+    const newTask = new Calendar({
+      id: `task_${uuidv4()}`,
+      title,
+      subject,
+      topic,
+      startDate: taskStartDate,
+      endDate: taskEndDate,
+      duration: taskDuration,
+      priority: priority || 'medium',
+      status: status || 'planned',
+      notes,
+      color: color || '#2563eb',
+      emoji: emoji || '📚',
+      userId,
+      tags: tags || [],
+      recurring: recurring || { enabled: false },
+      reminders: reminders || [],
+      metadata: metadata || {}
+    });
+
+    console.log('📅 Creating calendar task:', {
+      id: newTask.id,
+      title: newTask.title,
+      startDate: newTask.startDate,
+      endDate: newTask.endDate,
+      duration: newTask.duration,
+      userId: newTask.userId
+    });
+
+    // Check for conflicts
+    const conflict = await newTask.hasConflict();
+    if (conflict) {
+      return res.status(409).json({
+        success: false,
+        error: 'Task conflicts with existing schedule',
+        conflictingTask: {
+          id: conflict.id,
+          title: conflict.title,
+          startDate: conflict.startDate,
+          endDate: conflict.endDate
         }
       });
+    }
 
-      // Check for conflicts
-      const conflict = await calendarEntry.hasConflict();
+    await newTask.save();
+    await newTask.populate('userId', 'username email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Task created successfully',
+      task: newTask
+    });
+
+  } catch (error) {
+    console.error('❌ Create task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create task',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get all tasks for the authenticated user
+ * @route GET /api/calendar
+ * @access Private
+ */
+const getTasks = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'startDate',
+      sortOrder = 'asc',
+      status,
+      subject,
+      topic,
+      priority,
+      isCompleted,
+      startDate,
+      endDate,
+      search
+    } = req.query;
+
+    // Build query
+    const query = { userId };
+    
+    if (status) query.status = status;
+    if (subject) query.subject = subject;
+    if (topic) query.topic = topic;
+    if (priority) query.priority = priority;
+    if (isCompleted !== undefined) query.isCompleted = isCompleted === 'true';
+    
+    if (startDate || endDate) {
+      query.startDate = {};
+      if (startDate) query.startDate.$gte = new Date(startDate);
+      if (endDate) query.startDate.$lte = new Date(endDate);
+    }
+    
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { subject: { $regex: search, $options: 'i' } },
+        { topic: { $regex: search, $options: 'i' } },
+        { notes: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Build sort
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Execute query with pagination
+    const tasks = await Calendar.find(query)
+      .sort(sort)
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .populate('userId', 'username email');
+
+    // Get total count
+    const totalTasks = await Calendar.countDocuments(query);
+    const totalPages = Math.ceil(totalTasks / limit);
+
+    res.status(200).json({
+      success: true,
+      tasks,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalTasks,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve tasks'
+    });
+  }
+};
+
+/**
+ * Get a single task by ID
+ * @route GET /api/calendar/:id
+ * @access Private
+ */
+const getTaskById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const task = await Calendar.findOne({ _id: id, userId }).populate('userId', 'username email');
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      task
+    });
+
+  } catch (error) {
+    console.error('❌ Get task by ID error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve task'
+    });
+  }
+};
+
+/**
+ * Update a task
+ * @route PUT /api/calendar/:id
+ * @access Private
+ */
+const updateTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+    const updateData = req.body;
+
+    // Find the task
+    const task = await Calendar.findOne({ _id: id, userId });
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+
+    // Check for conflicts if dates are being updated
+    if (updateData.startDate || updateData.endDate) {
+      const tempTask = new Calendar({
+        ...task.toObject(),
+        ...updateData,
+        _id: task._id
+      });
+      
+      const conflict = await tempTask.hasConflict();
       if (conflict) {
         return res.status(409).json({
           success: false,
-          error: 'Scheduling conflict detected',
-          conflict: {
-            existingTitle: conflict.title,
-            existingTime: conflict.startDate,
-            requestedTime: calendarEntry.startDate
+          error: 'Updated schedule conflicts with existing tasks',
+          conflictingTask: {
+            id: conflict.id,
+            title: conflict.title,
+            startDate: conflict.startDate,
+            endDate: conflict.endDate
           }
         });
       }
+    }
 
-      // Save the calendar entry
-      const savedEntry = await calendarEntry.save();
+    // Update the task
+    const updatedTask = await Calendar.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('userId', 'username email');
 
-      console.log(`✅ Calendar entry created: ${savedEntry.title} for ${savedEntry.startDate}`);
+    res.status(200).json({
+      success: true,
+      message: 'Task updated successfully',
+      task: updatedTask
+    });
 
-      res.status(201).json({
-        success: true,
-        calendar: {
-          id: savedEntry.id,
-          title: savedEntry.title,
-          subject: savedEntry.subject,
-          topic: savedEntry.topic,
-          startDate: savedEntry.startDate,
-          endDate: savedEntry.endDate,
-          duration: savedEntry.duration,
-          priority: savedEntry.priority,
-          status: savedEntry.status,
-          notes: savedEntry.notes,
-          color: savedEntry.color,
-          emoji: savedEntry.emoji,
-          createdAt: savedEntry.createdAt,
-          updatedAt: savedEntry.updatedAt
-        }
-      });
+  } catch (error) {
+    console.error('❌ Update task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update task',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 
-    } catch (error) {
-      console.error('Calendar creation failed:', error);
-      res.status(500).json({
+/**
+ * Delete a task
+ * @route DELETE /api/calendar/:id
+ * @access Private
+ */
+const deleteTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const task = await Calendar.findOne({ _id: id, userId });
+    if (!task) {
+      return res.status(404).json({
         success: false,
-        error: 'Failed to create calendar entry',
-        details: error.message
+        error: 'Task not found'
       });
     }
+
+    await Calendar.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Task deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete task'
+    });
   }
+};
 
-  /**
-   * Get calendar entries for a user
-   */
-  async getCalendarEntries(req, res) {
-    try {
-      const userId = req.user._id;
-      const { startDate, endDate, status, subject, limit = 50 } = req.query;
+/**
+ * Mark task as completed
+ * @route PATCH /api/calendar/:id/complete
+ * @access Private
+ */
+const markTaskCompleted = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { actualDuration } = req.body;
+    const userId = req.user._id;
 
-      let query = { userId };
-
-      // Add date range filter
-      if (startDate && endDate) {
-        query.startDate = { $gte: new Date(startDate) };
-        query.endDate = { $lte: new Date(endDate) };
-      }
-
-      // Add status filter
-      if (status) {
-        query.status = status;
-      }
-
-      // Add subject filter
-      if (subject) {
-        query.subject = subject;
-      }
-
-      const calendarEntries = await Calendar.find(query)
-        .sort({ startDate: 1 })
-        .limit(parseInt(limit))
-        .populate('sessionId', 'title')
-        .populate('mindMapId', 'title topic')
-        .populate('quizId', 'title topic');
-
-      console.log(`📅 Retrieved ${calendarEntries.length} calendar entries for user ${userId}`);
-
-      res.status(200).json({
-        success: true,
-        calendar: calendarEntries.map(entry => ({
-          id: entry.id,
-          title: entry.title,
-          subject: entry.subject,
-          topic: entry.topic,
-          startDate: entry.startDate,
-          endDate: entry.endDate,
-          duration: entry.duration,
-          priority: entry.priority,
-          status: entry.status,
-          notes: entry.notes,
-          color: entry.color,
-          emoji: entry.emoji,
-          session: entry.sessionId ? { id: entry.sessionId._id, title: entry.sessionId.title } : null,
-          mindMap: entry.mindMapId ? { id: entry.mindMapId._id, title: entry.mindMapId.title, topic: entry.mindMapId.topic } : null,
-          quiz: entry.quizId ? { id: entry.quizId._id, title: entry.quizId.title, topic: entry.quizId.topic } : null,
-          tags: entry.tags,
-          recurring: entry.recurring,
-          reminders: entry.reminders,
-          metadata: entry.metadata,
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt
-        }))
-      });
-
-    } catch (error) {
-      console.error('Failed to get calendar entries:', error);
-      res.status(500).json({
+    const task = await Calendar.findOne({ _id: id, userId });
+    if (!task) {
+      return res.status(404).json({
         success: false,
-        error: 'Failed to retrieve calendar entries',
-        details: error.message
+        error: 'Task not found'
       });
     }
+
+    await task.markCompleted(actualDuration);
+    await task.populate('userId', 'username email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task marked as completed',
+      task
+    });
+
+  } catch (error) {
+    console.error('❌ Mark task completed error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark task as completed'
+    });
   }
+};
 
-  /**
-   * Get upcoming calendar entries
-   */
-  async getUpcomingEntries(req, res) {
-    try {
-      const userId = req.user._id;
-      const { limit = 10 } = req.query;
+/**
+ * Mark task as incomplete
+ * @route PATCH /api/calendar/:id/incomplete
+ * @access Private
+ */
+const markTaskIncomplete = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
 
-      const upcomingEntries = await Calendar.getUpcoming(userId, parseInt(limit));
-
-      console.log(`📅 Retrieved ${upcomingEntries.length} upcoming entries for user ${userId}`);
-
-      res.status(200).json({
-        success: true,
-        upcoming: upcomingEntries.map(entry => ({
-          id: entry.id,
-          title: entry.title,
-          subject: entry.subject,
-          topic: entry.topic,
-          startDate: entry.startDate,
-          endDate: entry.endDate,
-          duration: entry.duration,
-          priority: entry.priority,
-          status: entry.status,
-          color: entry.color,
-          emoji: entry.emoji,
-          timeUntil: Math.max(0, Math.floor((entry.startDate - new Date()) / 60000)) // minutes
-        }))
-      });
-
-    } catch (error) {
-      console.error('Failed to get upcoming entries:', error);
-      res.status(500).json({
+    const task = await Calendar.findOne({ _id: id, userId });
+    if (!task) {
+      return res.status(404).json({
         success: false,
-        error: 'Failed to retrieve upcoming entries',
-        details: error.message
+        error: 'Task not found'
       });
     }
+
+    await task.markIncomplete();
+    await task.populate('userId', 'username email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Task marked as incomplete',
+      task
+    });
+
+  } catch (error) {
+    console.error('❌ Mark task incomplete error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark task as incomplete'
+    });
   }
+};
 
-  /**
-   * Update a calendar entry
-   */
-  async updateCalendarEntry(req, res) {
-    try {
-      const userId = req.user._id;
-      const { entryId } = req.params;
-      const updateData = req.body;
+/**
+ * Get weekly progress statistics
+ * @route GET /api/calendar/progress/weekly
+ * @access Private
+ */
+const getWeeklyProgress = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { weekStart } = req.query;
 
-      // Find the calendar entry
-      const calendarEntry = await Calendar.findOne({ _id: entryId, userId });
-      if (!calendarEntry) {
-        return res.status(404).json({
-          success: false,
-          error: 'Calendar entry not found'
-        });
+    // Default to current week if no date provided
+    let startDate;
+    if (weekStart) {
+      startDate = new Date(weekStart);
+    } else {
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - startDate.getDay()); // Start of week (Sunday)
+      startDate.setHours(0, 0, 0, 0);
+    }
+
+    const progress = await Calendar.getWeeklyProgress(userId, startDate);
+    
+    // Format the response
+    const weekEnd = new Date(startDate);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    res.status(200).json({
+      success: true,
+      period: {
+        start: startDate,
+        end: weekEnd,
+        type: 'weekly'
+      },
+      progress: progress[0] || {
+        totalTasks: 0,
+        completedTasks: 0,
+        totalPlannedDuration: 0,
+        totalActualDuration: 0,
+        totalPlannedTime: 0,
+        completedTime: 0,
+        completionRate: 0,
+        progressPercentage: 0
       }
+    });
 
-      // Update the entry
-      Object.assign(calendarEntry, updateData);
-      
-      // Recalculate end date if start date or duration changed
-      if (updateData.startDate || updateData.duration) {
-        calendarEntry.endDate = new Date(calendarEntry.startDate.getTime() + calendarEntry.duration * 60000);
+  } catch (error) {
+    console.error('❌ Get weekly progress error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve weekly progress'
+    });
+  }
+};
+
+/**
+ * Get monthly progress statistics
+ * @route GET /api/calendar/progress/monthly
+ * @access Private
+ */
+const getMonthlyProgress = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { monthStart } = req.query;
+
+    // Default to current month if no date provided
+    let startDate;
+    if (monthStart) {
+      startDate = new Date(monthStart);
+    } else {
+      startDate = new Date();
+      startDate.setDate(1); // First day of month
+      startDate.setHours(0, 0, 0, 0);
+    }
+
+    const progress = await Calendar.getMonthlyProgress(userId, startDate);
+    
+    // Format the response
+    const monthEnd = new Date(startDate);
+    monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+    res.status(200).json({
+      success: true,
+      period: {
+        start: startDate,
+        end: monthEnd,
+        type: 'monthly'
+      },
+      progress: progress[0] || {
+        totalTasks: 0,
+        completedTasks: 0,
+        totalPlannedDuration: 0,
+        totalActualDuration: 0,
+        totalPlannedTime: 0,
+        completedTime: 0,
+        completionRate: 0,
+        progressPercentage: 0
       }
+    });
 
-      // Check for conflicts if time changed
-      if (updateData.startDate || updateData.duration) {
-        const conflict = await calendarEntry.hasConflict();
-        if (conflict) {
-          return res.status(409).json({
-            success: false,
-            error: 'Scheduling conflict detected after update',
-            conflict: {
-              existingTitle: conflict.title,
-              existingTime: conflict.startDate,
-              requestedTime: calendarEntry.startDate
-            }
-          });
-        }
+  } catch (error) {
+    console.error('❌ Get monthly progress error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve monthly progress'
+    });
+  }
+};
+
+/**
+ * Get overall user progress
+ * @route GET /api/calendar/progress/overall
+ * @access Private
+ */
+const getOverallProgress = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const progress = await Calendar.getUserProgress(userId);
+
+    res.status(200).json({
+      success: true,
+      progress: progress[0] || {
+        totalTasks: 0,
+        completedTasks: 0,
+        totalPlannedDuration: 0,
+        totalActualDuration: 0,
+        totalPlannedTime: 0,
+        completedTime: 0,
+        subjects: [],
+        topics: [],
+        completionRate: 0,
+        progressPercentage: 0,
+        efficiency: 0
       }
+    });
 
-      // Save the updated entry
-      const updatedEntry = await calendarEntry.save();
+  } catch (error) {
+    console.error('❌ Get overall progress error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve overall progress'
+    });
+  }
+};
 
-      console.log(`✅ Calendar entry updated: ${updatedEntry.title}`);
+/**
+ * Get tasks by subject with progress
+ * @route GET /api/calendar/progress/subject/:subject
+ * @access Private
+ */
+const getTasksBySubject = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { subject } = req.params;
 
-      res.status(200).json({
-        success: true,
-        calendar: {
-          id: updatedEntry.id,
-          title: updatedEntry.title,
-          subject: updatedEntry.subject,
-          topic: updatedEntry.topic,
-          startDate: updatedEntry.startDate,
-          endDate: updatedEntry.endDate,
-          duration: updatedEntry.duration,
-          priority: updatedEntry.priority,
-          status: updatedEntry.status,
-          notes: updatedEntry.notes,
-          color: updatedEntry.color,
-          emoji: updatedEntry.emoji,
-          updatedAt: updatedEntry.updatedAt
-        }
-      });
+    const tasks = await Calendar.getTasksBySubject(userId, subject);
 
-    } catch (error) {
-      console.error('Calendar update failed:', error);
-      res.status(500).json({
+    res.status(200).json({
+      success: true,
+      subject,
+      tasks
+    });
+
+  } catch (error) {
+    console.error('❌ Get tasks by subject error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve tasks by subject'
+    });
+  }
+};
+
+/**
+ * Get upcoming tasks
+ * @route GET /api/calendar/upcoming
+ * @access Private
+ */
+const getUpcomingTasks = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { limit = 10 } = req.query;
+
+    const tasks = await Calendar.getUpcoming(userId, parseInt(limit));
+
+    res.status(200).json({
+      success: true,
+      tasks
+    });
+
+  } catch (error) {
+    console.error('❌ Get upcoming tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve upcoming tasks'
+    });
+  }
+};
+
+/**
+ * Get tasks by date range
+ * @route GET /api/calendar/range
+ * @access Private
+ */
+const getTasksByDateRange = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
         success: false,
-        error: 'Failed to update calendar entry',
-        details: error.message
+        error: 'Start date and end date are required'
       });
     }
+
+    const tasks = await Calendar.getByDateRange(
+      userId,
+      new Date(startDate),
+      new Date(endDate)
+    );
+
+    res.status(200).json({
+      success: true,
+      period: {
+        start: new Date(startDate),
+        end: new Date(endDate)
+      },
+      tasks
+    });
+
+  } catch (error) {
+    console.error('❌ Get tasks by date range error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve tasks by date range'
+    });
   }
+};
 
-  /**
-   * Delete a calendar entry
-   */
-  async deleteCalendarEntry(req, res) {
-    try {
-      const userId = req.user._id;
-      const { entryId } = req.params;
+/**
+ * Bulk update task status
+ * @route PATCH /api/calendar/bulk-status
+ * @access Private
+ */
+const bulkUpdateStatus = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { taskIds, status, isCompleted } = req.body;
 
-      const calendarEntry = await Calendar.findOne({ _id: entryId, userId });
-      if (!calendarEntry) {
-        return res.status(404).json({
-          success: false,
-          error: 'Calendar entry not found'
-        });
-      }
-
-      await Calendar.deleteOne({ _id: entryId });
-
-      console.log(`✅ Calendar entry deleted: ${calendarEntry.title}`);
-
-      res.status(200).json({
-        success: true,
-        message: 'Calendar entry deleted successfully'
-      });
-
-    } catch (error) {
-      console.error('Calendar deletion failed:', error);
-      res.status(500).json({
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({
         success: false,
-        error: 'Failed to delete calendar entry',
-        details: error.message
+        error: 'Task IDs array is required'
       });
     }
-  }
 
-  /**
-   * Get calendar statistics
-   */
-  async getCalendarStats(req, res) {
-    try {
-      const userId = req.user._id;
-      const { startDate, endDate } = req.query;
-
-      let dateQuery = {};
-      if (startDate && endDate) {
-        dateQuery = {
-          startDate: { $gte: new Date(startDate) },
-          endDate: { $lte: new Date(endDate) }
-        };
-      }
-
-      const stats = await Calendar.aggregate([
-        { $match: { userId: userId, ...dateQuery } },
-        {
-          $group: {
-            _id: null,
-            totalEntries: { $sum: 1 },
-            totalDuration: { $sum: '$duration' },
-            averageDuration: { $avg: '$duration' },
-            byStatus: {
-              $push: '$status'
-            },
-            byPriority: {
-              $push: '$priority'
-            },
-            bySubject: {
-              $push: '$subject'
-            }
-          }
-        }
-      ]);
-
-      if (stats.length === 0) {
-        return res.status(200).json({
-          success: true,
-          stats: {
-            totalEntries: 0,
-            totalDuration: 0,
-            averageDuration: 0,
-            statusDistribution: {},
-            priorityDistribution: {},
-            subjectDistribution: {}
-          }
-        });
-      }
-
-      const stat = stats[0];
-
-      // Calculate distributions
-      const statusDistribution = stat.byStatus.reduce((acc, status) => {
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
-
-      const priorityDistribution = stat.byPriority.reduce((acc, priority) => {
-        acc[priority] = (acc[priority] || 0) + 1;
-        return acc;
-      }, {});
-
-      const subjectDistribution = stat.bySubject.reduce((acc, subject) => {
-        acc[subject] = (acc[subject] || 0) + 1;
-        return acc;
-      }, {});
-
-      console.log(`📊 Calendar stats retrieved for user ${userId}`);
-
-      res.status(200).json({
-        success: true,
-        stats: {
-          totalEntries: stat.totalEntries,
-          totalDuration: stat.totalDuration,
-          averageDuration: Math.round(stat.averageDuration),
-          statusDistribution,
-          priorityDistribution,
-          subjectDistribution
-        }
-      });
-
-    } catch (error) {
-      console.error('Failed to get calendar stats:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve calendar statistics',
-        details: error.message
-      });
+    const updateData = {};
+    if (status !== undefined) updateData.status = status;
+    if (isCompleted !== undefined) updateData.isCompleted = isCompleted;
+    
+    if (isCompleted) {
+      updateData.completedAt = new Date();
     }
+
+    const result = await Calendar.updateMany(
+      { _id: { $in: taskIds }, userId },
+      updateData
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Updated ${result.modifiedCount} tasks`,
+      modifiedCount: result.modifiedCount
+    });
+
+  } catch (error) {
+    console.error('❌ Bulk update status error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to bulk update task status'
+    });
   }
+};
 
-  /**
-   * Bulk create calendar entries (for recurring sessions)
-   */
-  async bulkCreateEntries(req, res) {
-    try {
-      const userId = req.user._id;
-      const { entries } = req.body;
-
-      if (!Array.isArray(entries) || entries.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Entries array is required and must not be empty'
-        });
-      }
-
-      const createdEntries = [];
-      const errors = [];
-
-      for (const entryData of entries) {
-        try {
-          const calendarEntry = new Calendar({
-            ...entryData,
-            userId,
-            metadata: {
-              ...entryData.metadata,
-              createdBy: req.user.username || req.user.email,
-              bulkCreated: true
-            }
-          });
-
-          // Check for conflicts
-          const conflict = await calendarEntry.hasConflict();
-          if (conflict) {
-            errors.push({
-              title: entryData.title,
-              error: 'Scheduling conflict detected',
-              conflict: {
-                existingTitle: conflict.title,
-                existingTime: conflict.startDate
-              }
-            });
-            continue;
-          }
-
-          const savedEntry = await calendarEntry.save();
-          createdEntries.push({
-            id: savedEntry.id,
-            title: savedEntry.title,
-            startDate: savedEntry.startDate
-          });
-
-        } catch (error) {
-          errors.push({
-            title: entryData.title,
-            error: error.message
-          });
-        }
-      }
-
-      console.log(`✅ Bulk created ${createdEntries.length} calendar entries, ${errors.length} errors`);
-
-      res.status(200).json({
-        success: true,
-        created: createdEntries,
-        errors: errors,
-        summary: {
-          total: entries.length,
-          created: createdEntries.length,
-          failed: errors.length
-        }
-      });
-
-    } catch (error) {
-      console.error('Bulk calendar creation failed:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to bulk create calendar entries',
-        details: error.message
-      });
-    }
-  }
-}
-
-module.exports = new CalendarController();
+module.exports = {
+  createTask,
+  getTasks,
+  getTaskById,
+  updateTask,
+  deleteTask,
+  markTaskCompleted,
+  markTaskIncomplete,
+  getWeeklyProgress,
+  getMonthlyProgress,
+  getOverallProgress,
+  getTasksBySubject,
+  getUpcomingTasks,
+  getTasksByDateRange,
+  bulkUpdateStatus
+};

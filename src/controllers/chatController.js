@@ -2,6 +2,7 @@ const ChatHistoryEntry = require('../models/ChatHistoryEntry');
 const Session = require('../models/Session');
 const Evidence = require('../models/Evidence');
 const nlpService = require('../services/nlpService');
+const dashscopeService = require('../services/dashscopeService');
 const ApiResponse = require('../utils/apiResponse');
 const TitleGenerator = require('../utils/titleGenerator');
 const axios = require('axios');
@@ -181,8 +182,32 @@ class ChatController {
       console.log('📝 Using text-based RAG response');
       return await this.generateTextRAGResponse(message, context, options);
       
-  } catch (error) {
+    } catch (error) {
       console.error('RAG response generation failed:', error);
+      
+      // Try DashScope fallback if available
+      if (dashscopeService.isAvailable()) {
+        console.log('🔄 Trying DashScope fallback for RAG...');
+        try {
+          const fallbackResponse = await dashscopeService.processRAG(message, context, null, options);
+          if (fallbackResponse.success) {
+            return {
+              content: fallbackResponse.response,
+              method: 'dashscope-fallback',
+              model: fallbackResponse.model,
+              contextUsed: {
+                sessions: context.sessions?.length || 0,
+                evidence: context.evidence?.length || 0,
+                chatHistory: context.chatHistory?.length || 0,
+                hasImage: false
+              }
+            };
+          }
+        } catch (fallbackError) {
+          console.error('DashScope fallback also failed:', fallbackError);
+        }
+      }
+      
       return this.generateFallbackResponse(message, context);
     }
   }
@@ -247,7 +272,42 @@ class ChatController {
       
     } catch (error) {
       console.error('Vision RAG response failed:', error);
-      console.log('🔄 Using fallback response due to error');
+      
+      // Try DashScope fallback if available
+      if (dashscopeService.isAvailable()) {
+        console.log('🔄 Trying DashScope vision fallback for RAG...');
+        try {
+          // Get image buffer from context if available
+          let imageBuffer = null;
+          if (context.imageUrl) {
+            try {
+              const imageResponse = await axios.get(context.imageUrl, { responseType: 'arraybuffer' });
+              imageBuffer = Buffer.from(imageResponse.data);
+            } catch (imageError) {
+              console.log('Could not fetch image for DashScope fallback');
+            }
+          }
+          
+          const fallbackResponse = await dashscopeService.processRAG(message, context, imageBuffer, options);
+          if (fallbackResponse.success) {
+            return {
+              content: fallbackResponse.response,
+              method: 'dashscope-vision-fallback',
+              model: fallbackResponse.model,
+              contextUsed: {
+                sessions: context.sessions?.length || 0,
+                evidence: context.evidence?.length || 0,
+                chatHistory: context.chatHistory?.length || 0,
+                hasImage: !!imageBuffer
+              }
+            };
+          }
+        } catch (fallbackError) {
+          console.error('DashScope vision fallback also failed:', fallbackError);
+        }
+      }
+      
+      console.log('🔄 Using basic fallback response due to error');
       return this.generateFallbackResponse(message, context);
     }
   }

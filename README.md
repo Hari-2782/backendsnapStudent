@@ -10,6 +10,8 @@
 ## 🚀 Features
 
 - **🔍 Vision Processing**: Extract text and understand images using OCR and AI
+- **📄 PDF Processing**: Extract text and analyze content from PDF documents
+- **🔄 AI Fallbacks**: DashScope Qwen-VL integration for OCR and RAG fallbacks
 - **🧠 Semantic Search**: Advanced search with context understanding
 - **🗺️ Mind Mapping**: Generate interactive mind maps from content
 - **📝 Quiz Generation**: Create quizzes from study materials
@@ -304,6 +306,7 @@ npm run build            # Build for production
 | `MONGO_URI` | ✅ | MongoDB connection string |
 | `JWT_SECRET` | ✅ | JWT signing secret |
 | `OPENROUTER_API_KEY` | ✅ | OpenRouter API key |
+| `DASHSCOPE_API_KEY` | ❌ | DashScope API key (fallback for OCR/RAG) |
 | `HF_API_KEY` | ✅ | Hugging Face API key |
 | `CLOUDINARY_CLOUD_NAME` | ✅ | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | ✅ | Cloudinary API key |
@@ -323,6 +326,7 @@ npm test
 npm run test:openrouter
 npm run test:vision
 npm run test:config
+npm run test:dashscope
 ```
 
 ### Test API Endpoints
@@ -400,7 +404,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🎯 Roadmap
 
 - [ ] **Real-time Chat**: WebSocket support
-- [ ] **File Upload**: Support for PDFs and documents
+- [x] **File Upload**: Support for PDFs and documents
 - [ ] **Analytics**: User progress tracking
 - [ ] **Mobile API**: Optimized for mobile apps
 - [ ] **Multi-language**: Internationalization support

@@ -1,4 +1,5 @@
 const ocrService = require('../services/ocrService');
+const pdfService = require('../services/pdfService');
 const nlpService = require('../services/nlpService');
 const embedService = require('../services/embedService');
 const evidenceService = require('../services/evidenceService');
@@ -12,65 +13,101 @@ const axios = require('axios');
 
 class ProcessController {
   /**
-   * Image upload and processing endpoint
+   * File upload and processing endpoint (supports images and PDFs)
    * Only stores summary, doesn't generate mind map immediately
    */
-  async processImage(req, res) {
+  async processFile(req, res) {
     const startTime = Date.now();
     
     try {
-      const { imageId, userId, options = {} } = req.body;
+      const { fileId, userId, options = {} } = req.body;
       const actualUserId = userId || req.user?._id || 'dev-user-123';
       
-      if (!imageId) {
-        return res.status(400).json(ApiResponse.error('imageId is required'));
+      if (!fileId) {
+        return res.status(400).json(ApiResponse.error('fileId is required'));
       }
 
-      console.log(`🚀 Starting image processing for user ${actualUserId}, image ${imageId}`);
+      console.log(`🚀 Starting file processing for user ${actualUserId}, file ${fileId}`);
       
-      // 1. Get image buffer
-      const imageBuffer = await this.getImageBuffer(imageId);
-      if (!imageBuffer) {
-        return res.status(404).json(ApiResponse.notFound('Image not found'));
+      // 1. Get file buffer and metadata
+      const { fileBuffer, fileType, originalName } = await this.getFileBuffer(fileId);
+      if (!fileBuffer) {
+        return res.status(404).json(ApiResponse.notFound('File not found'));
       }
 
-      // 2. Run OCR pipeline
-      console.log('📸 Running OCR pipeline...');
-      const ocrResult = await ocrService.processImageOptimized(imageBuffer, {
-        originalImageId: imageId,
-        ...options
-      });
+      let processingResult;
+      let evidenceRecords = [];
 
-      if (!ocrResult.success) {
-        return res.status(500).json(ApiResponse.serverError('OCR processing failed', ocrResult.error));
+      // 2. Process based on file type
+      if (fileType === 'image') {
+        console.log('📸 Processing image file...');
+        const ocrResult = await ocrService.processImageOptimized(fileBuffer, {
+          originalImageId: fileId,
+          ...options
+        });
+
+        if (!ocrResult.success) {
+          return res.status(500).json(ApiResponse.serverError('OCR processing failed', ocrResult.error));
+        }
+
+        evidenceRecords = ocrResult.evidence;
+        processingResult = {
+          method: 'ocr',
+          totalRegions: ocrResult.totalRegions,
+          averageConfidence: ocrResult.averageConfidence
+        };
+
+      } else if (fileType === 'pdf') {
+        console.log('📄 Processing PDF file...');
+        const pdfResult = await pdfService.processPDF(fileBuffer, {
+          originalFileId: fileId,
+          ...options
+        });
+
+        if (!pdfResult.success) {
+          return res.status(500).json(ApiResponse.serverError('PDF processing failed', pdfResult.error));
+        }
+
+        evidenceRecords = pdfResult.evidence;
+        processingResult = {
+          method: 'pdf-parse',
+          totalPages: pdfResult.totalPages,
+          totalRegions: pdfResult.totalRegions,
+          averageConfidence: pdfResult.averageConfidence,
+          metadata: pdfResult.metadata
+        };
+
+      } else {
+        return res.status(400).json(ApiResponse.error('Unsupported file type'));
       }
 
       // 3. Save evidence records
       console.log('💾 Saving evidence records...');
-      const evidenceRecords = await this.saveEvidenceRecordsOptimized(ocrResult.evidence, imageId, actualUserId);
+      const savedEvidenceRecords = await this.saveEvidenceRecordsOptimized(evidenceRecords, fileId, actualUserId);
 
       // 4. Extract text for summary
-      const allText = evidenceRecords.map(ev => ev.text).join(' ');
+      const allText = savedEvidenceRecords.map(ev => ev.text).join(' ');
       
       // 5. Generate summary only (no mind map yet)
       console.log('📝 Generating summary...');
-      const summary = await this.generateSummary(allText, evidenceRecords);
+      const summary = await this.generateSummary(allText, savedEvidenceRecords);
 
       // 6. Generate embeddings for semantic search (async)
-      this.generateEmbeddingsAsync(allText, actualUserId, imageId);
+      this.generateEmbeddingsAsync(allText, actualUserId, fileId);
 
-      // 7. Create session for this image processing
+      // 7. Create session for this file processing
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       const session = new Session({
         sessionId,
         userId: actualUserId,
-        title: `Study Session from Image ${imageId}`,
-        description: `Generated study session with ${evidenceRecords.length} concepts from uploaded image`,
-        tags: ['auto-generated', 'image-processing'],
+        title: `Study Session from ${fileType === 'pdf' ? 'PDF' : 'Image'} ${originalName || fileId}`,
+        description: `Generated study session with ${savedEvidenceRecords.length} concepts from uploaded ${fileType}`,
+        tags: ['auto-generated', `${fileType}-processing`],
         source: {
-          uploadFilename: imageId,
-          imageUrl: `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${imageId}`
+          uploadFilename: originalName || fileId,
+          fileType: fileType,
+          fileUrl: `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/${fileType === 'pdf' ? 'raw' : 'image'}/upload/${fileId}`
         },
         status: 'active'
       });
@@ -78,23 +115,25 @@ class ProcessController {
       await session.save();
 
       // 8. Save processing result with summary
-      const processingResult = {
-        imageId,
+      const finalProcessingResult = {
+        fileId,
         userId: actualUserId,
         sessionId: session.sessionId,
         summary,
-        evidenceCount: evidenceRecords.length,
+        evidenceCount: savedEvidenceRecords.length,
         processingTime: Date.now() - startTime,
         status: 'completed',
-        createdAt: new Date()
+        createdAt: new Date(),
+        fileType: fileType,
+        ...processingResult
       };
 
       // Return standardized response with summary and evidence only
-      return res.json(ApiResponse.success('Image processed successfully', {
-        imageId,
+      return res.json(ApiResponse.success(`${fileType === 'pdf' ? 'PDF' : 'Image'} processed successfully`, {
+        fileId,
         sessionId: session.sessionId,
         summary,
-        evidence: evidenceRecords.map(ev => ({
+        evidence: savedEvidenceRecords.map(ev => ({
           id: ev._id,
           text: ev.text,
           confidence: ev.confidence,
@@ -192,17 +231,17 @@ class ProcessController {
    */
   async getProcessingStatus(req, res) {
     try {
-      const { imageId } = req.params;
+      const { fileId } = req.params;
       
-      if (!imageId) {
-        return res.status(400).json(ApiResponse.error('imageId is required'));
+      if (!fileId) {
+        return res.status(400).json(ApiResponse.error('fileId is required'));
       }
 
-      // Check if image exists and get status
-      const status = await this.getImageStatus(imageId);
+      // Check if file exists and get status
+      const status = await this.getFileStatus(fileId);
       
       if (!status) {
-        return res.status(404).json(ApiResponse.notFound('Image not found'));
+        return res.status(404).json(ApiResponse.notFound('File not found'));
       }
 
       return res.json(ApiResponse.success('Status retrieved successfully', status));
@@ -214,11 +253,11 @@ class ProcessController {
   }
 
   /**
-   * Optimized image buffer retrieval with caching
+   * Optimized file buffer retrieval with caching
    */
-  async getImageBuffer(imageId) {
+  async getFileBuffer(fileId) {
     try {
-      console.log(`Fetching image buffer for ${imageId}`);
+      console.log(`Fetching file buffer for ${fileId}`);
       
       // Import cloudinary here to avoid circular dependencies
       const cloudinary = require('cloudinary').v2;
@@ -230,65 +269,62 @@ class ProcessController {
         api_secret: process.env.CLOUDINARY_API_SECRET
       });
       
-      // Try different ways to construct the image ID
-      let fullImageId = imageId;
+      // Try multiple ID formats systematically
+      const possibleIds = [
+        fileId, // Original ID as-is
+        `ai-study-helper/${fileId}`, // With folder prefix
+        fileId.replace('ai-study-helper/', '') // Without folder prefix
+      ];
       
-      // If imageId doesn't already include the folder, add it
-      if (!imageId.includes('ai-study-helper/')) {
-        fullImageId = `ai-study-helper/${imageId}`;
-      }
+      console.log(`🔍 Trying multiple ID formats:`, possibleIds);
       
-      console.log(`Trying to fetch image with ID: ${fullImageId}`);
-      
-      try {
-        // Get the image URL from Cloudinary
-        const result = await cloudinary.api.resource(fullImageId);
-        
-        if (!result.secure_url) {
-          console.error('No secure URL found for image:', imageId);
-          return null;
-        }
-        
-        // Download the image buffer using axios with timeout
-        const response = await axios.get(result.secure_url, {
-          responseType: 'arraybuffer',
-          timeout: 10000 // 10 second timeout
-        });
-        
-        const buffer = Buffer.from(response.data);
-        console.log(`Successfully fetched image buffer: ${buffer.length} bytes`);
-        
-        return buffer;
-        
-      } catch (cloudinaryError) {
-        console.log(`Failed with full ID ${fullImageId}, trying alternative approaches...`);
-        
-        // Try without folder prefix
-        if (fullImageId.startsWith('ai-study-helper/')) {
-          const alternativeId = fullImageId.replace('ai-study-helper/', '');
-          console.log(`Trying alternative ID: ${alternativeId}`);
+      for (const currentId of possibleIds) {
+        try {
+          console.log(`🔄 Trying ID: ${currentId}`);
           
+          // Try as image first
           try {
-            const result = await cloudinary.api.resource(alternativeId);
-            if (result.secure_url) {
-              const response = await axios.get(result.secure_url, {
-                responseType: 'arraybuffer',
-                timeout: 10000
-              });
-              const buffer = Buffer.from(response.data);
-              console.log(`Successfully fetched image buffer with alternative ID: ${buffer.length} bytes`);
-              return buffer;
+            const imageResult = await cloudinary.api.resource(currentId, { resource_type: 'image' });
+            console.log('✅ File found as image');
+            
+            const fileBuffer = await this.downloadFileBuffer(imageResult.secure_url);
+            return {
+              fileBuffer,
+              fileType: 'image',
+              originalName: imageResult.original_filename || fileId
+            };
+          } catch (imageError) {
+            console.log('❌ Not an image, trying as raw file...');
+            
+            // Try as raw file (PDF)
+            try {
+              const rawResult = await cloudinary.api.resource(currentId, { resource_type: 'raw' });
+              console.log('✅ File found as raw file (PDF)');
+              
+              const fileBuffer = await this.downloadFileBuffer(rawResult.secure_url);
+              return {
+                fileBuffer,
+                fileType: 'pdf',
+                originalName: rawResult.original_filename || fileId
+              };
+            } catch (rawError) {
+              console.log(`❌ ID ${currentId} failed for both types`);
+              continue; // Try next ID format
             }
-          } catch (altError) {
-            console.log(`Alternative ID also failed: ${altError.message}`);
           }
+          
+        } catch (idError) {
+          console.log(`❌ ID ${currentId} not found, trying next...`);
+          continue;
         }
-        
-        throw cloudinaryError;
       }
+      
+      // If we get here, none of the ID formats worked
+      console.error('❌ All ID formats failed for file:', fileId);
+      return null;
       
     } catch (error) {
-      console.error('Failed to fetch image buffer:', {
+      console.error('Failed to fetch file buffer:', {
         request_options: error.request_options,
         query_params: error.query_params,
         error: error.error
@@ -298,18 +334,107 @@ class ProcessController {
   }
 
   /**
+   * Download file buffer from URL
+   */
+  async downloadFileBuffer(fileUrl) {
+    try {
+      // Download the file buffer using axios with timeout
+      const response = await axios.get(fileUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'User-Agent': 'AI-Study-Helper/1.0'
+        }
+      });
+      
+      const buffer = Buffer.from(response.data);
+      console.log(`Successfully downloaded file buffer: ${buffer.length} bytes`);
+      
+      return buffer;
+    } catch (error) {
+      console.error('Failed to download file buffer:', error);
+      
+      // If it's a 401/403 error, try to get a signed URL from Cloudinary
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        console.log('🔄 Access denied, trying to get signed URL...');
+        try {
+          // Extract file ID from URL and try to get a signed URL
+          const urlParts = fileUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          const resourceType = fileUrl.includes('/raw/') ? 'raw' : 'image';
+          
+          // Get signed URL with transformation
+          const signedUrl = cloudinary.url(fileName, {
+            resource_type: resourceType,
+            sign_url: true,
+            type: 'upload',
+            secure: true,
+            folder: 'ai-study-helper' // Include folder for proper path
+          });
+          
+          console.log('🔑 Generated signed URL, retrying download...');
+          const signedResponse = await axios.get(signedUrl, {
+            responseType: 'arraybuffer',
+            timeout: 15000
+          });
+          
+          const signedBuffer = Buffer.from(signedResponse.data);
+          console.log(`✅ Successfully downloaded with signed URL: ${signedBuffer.length} bytes`);
+          return signedBuffer;
+          
+        } catch (signedError) {
+          console.error('❌ Signed URL also failed:', signedError.message);
+          
+          // Try one more approach: get the file directly via Cloudinary API
+          try {
+            console.log('🔄 Trying direct Cloudinary API download...');
+            const urlParts = fileUrl.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const resourceType = fileUrl.includes('/raw/') ? 'raw' : 'image';
+            
+            // Get file info first
+            const fileInfo = await cloudinary.api.resource(fileName, { 
+              resource_type: resourceType,
+              type: 'upload'
+            });
+            
+            // Try to download using the secure URL with authentication
+            const directResponse = await axios.get(fileInfo.secure_url, {
+              responseType: 'arraybuffer',
+              timeout: 15000,
+              headers: {
+                'User-Agent': 'AI-Study-Helper/1.0'
+              }
+            });
+            
+            const directBuffer = Buffer.from(directResponse.data);
+            console.log(`✅ Successfully downloaded via direct API: ${directBuffer.length} bytes`);
+            return directBuffer;
+            
+          } catch (directError) {
+            console.error('❌ Direct API download also failed:', directError.message);
+            throw error; // Throw original error
+          }
+        }
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
    * Optimized evidence records saving with batch operations
    */
-  async saveEvidenceRecordsOptimized(evidenceData, imageId, userId) {
+  async saveEvidenceRecordsOptimized(evidenceData, fileId, userId) {
     const evidenceRecords = [];
     
     // Batch create evidence records
     const evidencePromises = evidenceData.map(async (ev) => {
-      const imageUrl = ev.imageUrl || `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/ai-study-helper/${imageId}`;
+      const fileUrl = ev.imageUrl || ev.fileUrl || `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/ai-study-helper/${fileId}`;
       
       const evidence = new Evidence({
-        imageUrl: imageUrl,
-        originalImageId: imageId,
+        fileUrl: fileUrl,
+        originalFileId: fileId,
         bbox: ev.bbox,
         text: ev.text,
         ocrConfidence: ev.ocrConfidence,
@@ -343,16 +468,111 @@ class ProcessController {
   }
 
   /**
-   * Generate overall summary
+   * Generate robust AI-powered summary
    */
   async generateSummary(text, evidence) {
     try {
-      // Simple summary generation - you can enhance this
-      const words = text.split(' ').slice(0, 20).join(' ');
-      return `${words}...`;
+      if (!text || text.trim().length === 0) {
+        return 'No text content available for summary generation.';
+      }
+
+      // If we have evidence records, create a comprehensive summary
+      if (evidence && evidence.length > 0) {
+        const evidenceTexts = evidence.map(ev => ev.text).join(' ');
+        const combinedText = `${text}\n\nEvidence Details:\n${evidenceTexts}`;
+        
+        // Create a structured summary based on content analysis
+        const summary = this.createStructuredSummary(combinedText, evidence);
+        return summary;
+      }
+
+      // Fallback: create summary from main text
+      return this.createStructuredSummary(text, []);
+      
     } catch (error) {
       console.error('Summary generation error:', error);
       return 'Summary generation failed';
+    }
+  }
+
+  /**
+   * Create structured summary from content analysis
+   */
+  createStructuredSummary(text, evidence) {
+    try {
+      // Analyze content type and create appropriate summary
+      const hasMath = /[+\-*/=()\[\]{}^]/.test(text);
+      const hasChemistry = /(molality|boiling point|freezing point|osmotic pressure|vapor pressure|solute|solvent)/i.test(text);
+      const hasPhysics = /(force|velocity|acceleration|energy|power|mass|weight)/i.test(text);
+      const hasBiology = /(cell|organism|species|evolution|genetics|ecosystem)/i.test(text);
+      
+      let contentType = 'General Content';
+      if (hasChemistry) contentType = 'Chemistry Notes';
+      else if (hasPhysics) contentType = 'Physics Notes';
+      else if (hasBiology) contentType = 'Biology Notes';
+      else if (hasMath) contentType = 'Mathematical Content';
+      
+      // Extract key concepts (first 100-150 characters for readability)
+      const keyContent = text.length > 150 ? text.substring(0, 150) + '...' : text;
+      
+      // Create structured summary
+      let summary = `📚 ${contentType}\n\n`;
+      summary += `🔍 Content Overview:\n${keyContent}\n\n`;
+      
+      if (evidence && evidence.length > 0) {
+        summary += `📊 Evidence Records: ${evidence.length} sections identified\n`;
+        summary += `📝 Key Topics: ${this.extractKeyTopics(text)}\n`;
+        summary += `🔬 Content Type: ${this.detectContentCategory(text)}`;
+      }
+      
+      return summary;
+      
+    } catch (error) {
+      console.error('Structured summary creation error:', error);
+      return text.length > 200 ? text.substring(0, 200) + '...' : text;
+    }
+  }
+
+  /**
+   * Extract key topics from text
+   */
+  extractKeyTopics(text) {
+    try {
+      const topics = [];
+      const lines = text.split('\n').filter(line => line.trim().length > 0);
+      
+      // Look for topic indicators
+      lines.forEach(line => {
+        if (line.includes('-') || line.includes('•') || line.includes(':')) {
+          const topic = line.split(/[-•:]/)[1]?.trim();
+          if (topic && topic.length > 3 && topic.length < 50) {
+            topics.push(topic);
+          }
+        }
+      });
+      
+      return topics.length > 0 ? topics.slice(0, 3).join(', ') : 'General content';
+    } catch (error) {
+      return 'General content';
+    }
+  }
+
+  /**
+   * Detect content category
+   */
+  detectContentCategory(text) {
+    const lowerText = text.toLowerCase();
+    
+    if (lowerText.includes('chemistry') || lowerText.includes('molality') || lowerText.includes('boiling point')) {
+      return 'Chemistry - Physical Chemistry';
+    } else if (lowerText.includes('physics') || lowerText.includes('force') || lowerText.includes('energy')) {
+      return 'Physics';
+    } else if (lowerText.includes('biology') || lowerText.includes('cell') || lowerText.includes('organism')) {
+      return 'Biology';
+    } else if (lowerText.includes('math') || lowerText.includes('equation') || lowerText.includes('formula')) {
+      return 'Mathematics';
+    } else {
+      return 'General Study Material';
     }
   }
 
@@ -397,11 +617,11 @@ class ProcessController {
     };
   }
 
-  async getImageStatus(imageId) {
+  async getFileStatus(fileId) {
     // This should check your database
     // For now, return mock status
     return {
-      imageId,
+      fileId,
       status: 'completed',
       processedAt: new Date().toISOString()
     };

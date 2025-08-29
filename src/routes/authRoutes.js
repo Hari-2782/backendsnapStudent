@@ -166,11 +166,11 @@ router.post('/dev-login', async (req, res) => {
     let devUser = await User.findOne({ email: 'dev@example.com' });
     
     if (!devUser) {
-      const hashedPassword = await bcrypt.hash('dev123', 10);
       devUser = new User({
         username: 'devuser',
         email: 'dev@example.com',
-        password: hashedPassword,
+        password: 'dev123', // Will be hashed by the pre-save hook
+        name: 'Development User',
         isActive: true,
         role: 'user'
       });

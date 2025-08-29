@@ -1,6 +1,7 @@
 const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
 const axios = require('axios');
+const dashscopeService = require('./dashscopeService');
 
 class OCRService {
   constructor() {
@@ -41,12 +42,18 @@ class OCRService {
       
       // 2. Run OCR with optimized settings
       console.log('🔍 Running optimized OCR...');
-      const ocrResult = await this.runOptimizedOCR(preprocessedBuffer, options);
+      let ocrResult = await this.runOptimizedOCR(preprocessedBuffer, options);
       
-      // 3. Post-process and clean results
+      // 3. If OCR fails or has no evidence, try DashScope fallback
+      if ((!ocrResult.success || !ocrResult.evidence || ocrResult.evidence.length === 0) && dashscopeService.isAvailable()) {
+        console.log('🔄 Primary OCR failed or no evidence, trying DashScope fallback...');
+        ocrResult = await dashscopeService.processImageOCR(preprocessedBuffer, options);
+      }
+      
+      // 4. Post-process and clean results
       const cleanedResults = await this.postProcessResultsOptimized(ocrResult);
       
-      // 4. Generate evidence records
+      // 5. Generate evidence records
       const evidenceRecords = await this.generateEvidenceRecordsOptimized(cleanedResults, options);
       
       const processingTime = Date.now() - startTime;
@@ -185,6 +192,7 @@ class OCRService {
       confidence = Math.min(confidence, 1.0);
       
       return {
+        success: true,
         method: 'tesseract-fallback',
         results: [{
           region: { x: 0, y: 0, width: 0, height: 0, confidence: 0.7, type: 'text' },
@@ -338,28 +346,52 @@ class OCRService {
       // Create evidence record without cropping (for speed)
       const imageUrl = await this.getImageUrl(options.originalImageId);
       
-      // Determine the correct OCR method
-      let ocrMethod = result.method || 'unknown';
+      // Determine the correct OCR method and preserve original data
+      let ocrMethod = result.method || 'tesseract';
       
       // If the overall method indicates Qwen vision, use that
       if (ocrResults.method === 'qwen-vision-api') {
         ocrMethod = 'trocr'; // Use trocr for Qwen vision results
       }
       
-      evidenceRecords.push({
-        imageUrl: imageUrl,
-        bbox: result.region || { x: 0, y: 0, width: 0, height: 0 },
-        text: result.text,
-        ocrConfidence: result.confidence || 0.5,
-        ocrMethod: ocrMethod,
-        contentType: this.detectContentType(result.text),
-        metadata: {
-          language: 'en',
-          regionType: 'text',
-          lineCount: result.text.split('\n').length,
-          wordCount: result.text.split(/\s+/).length
-        }
-      });
+      // If the overall method indicates DashScope fallback, use that
+      if (ocrResults.method === 'qwen-vl-fallback') {
+        ocrMethod = 'qwen-vl-fallback'; // Use the correct enum value
+      }
+      
+      // Preserve original evidence data if it exists (for DashScope)
+      if (result.ocrConfidence !== undefined) {
+        evidenceRecords.push({
+          imageUrl: imageUrl,
+          bbox: result.bbox || { x: 0, y: 0, width: 0, height: 0 },
+          text: result.text,
+          ocrConfidence: result.ocrConfidence,
+          ocrMethod: result.ocrMethod || ocrMethod,
+          contentType: result.contentType || this.detectContentType(result.text),
+          metadata: result.metadata || {
+            language: 'en',
+            regionType: 'text',
+            lineCount: result.text.split('\n').length,
+            wordCount: result.text.split(/\s+/).length
+          }
+        });
+      } else {
+        // Fallback for other OCR methods
+        evidenceRecords.push({
+          imageUrl: imageUrl,
+          bbox: result.region || { x: 0, y: 0, width: 0, height: 0 },
+          text: result.text,
+          ocrConfidence: result.confidence || 0.5,
+          ocrMethod: ocrMethod,
+          contentType: this.detectContentType(result.text),
+          metadata: {
+            language: 'en',
+            regionType: 'text',
+            lineCount: result.text.split('\n').length,
+            wordCount: result.text.split(/\s+/).length
+          }
+        });
+      }
     }
     
     console.log(`Generated ${evidenceRecords.length} evidence records`);

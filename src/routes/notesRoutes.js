@@ -1,52 +1,128 @@
 const express = require('express');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
-const Note = require('../models/Note');
+const { 
+  createNote, 
+  getNotes, 
+  getNoteById, 
+  updateNote, 
+  deleteNote,
+  updateNoteTags,
+  toggleNotePin,
+  toggleNotePublic,
+  getNoteStats,
+  searchNotes
+} = require('../controllers/notesController');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Ensure uploads directory exists
+const uploadsDir = 'uploads/notes';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for note image uploads
+const noteImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+    files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
 
 const router = express.Router();
 
-// Allow optional auth so frontend without token still works in dev.
-router.use(optionalAuth);
+// Apply authentication middleware
+if (process.env.NODE_ENV === 'development') {
+  router.use(optionalAuth);
+} else {
+  router.use(authenticateToken);
+}
 
 /**
- * @route   PUT /notes/:id
- * @desc    Create or update a note by noteId. If authenticated, ties to userId.
- * @access  Public (dev) / Authenticated (pref)
+ * @route   POST /api/notes
+ * @desc    Create a new note with optional image
+ * @access  Private
  */
-router.put('/:id', async (req, res) => {
-  try {
-    const noteId = req.params.id;
-    const { title = '', content = '', tags = [] } = req.body || {};
+router.post('/', noteImageUpload.single('image'), createNote);
 
-    if (!noteId) {
-      return res.status(400).json({ success: false, error: 'noteId is required' });
-    }
+/**
+ * @route   GET /api/notes
+ * @desc    Get all notes for authenticated user with pagination and filters
+ * @access  Private
+ */
+router.get('/', getNotes);
 
-    const filter = { noteId };
-    // If user present, scope by userId
-    if (req.user?._id) {
-      filter.userId = req.user._id;
-    }
+/**
+ * @route   GET /api/notes/search
+ * @desc    Search notes by query, category, tags, or status
+ * @access  Private
+ */
+router.get('/search', searchNotes);
 
-    const update = {
-      $set: {
-        title: String(title),
-        content: String(content),
-        tags: Array.isArray(tags) ? tags.map(String) : [],
-      },
-      $setOnInsert: {
-        noteId,
-        userId: req.user?._id || undefined,
-        createdAt: new Date(),
-      }
-    };
+/**
+ * @route   GET /api/notes/stats
+ * @desc    Get note statistics for authenticated user
+ * @access  Private
+ */
+router.get('/stats', getNoteStats);
 
-    const note = await Note.findOneAndUpdate(filter, update, { new: true, upsert: true });
+/**
+ * @route   GET /api/notes/:id
+ * @desc    Get a single note by ID
+ * @access  Private
+ */
+router.get('/:id', getNoteById);
 
-    return res.status(200).json({ success: true, note });
-  } catch (error) {
-    console.error('Notes PUT error:', error);
-    return res.status(500).json({ success: false, error: 'Failed to save note' });
-  }
-});
+/**
+ * @route   PUT /api/notes/:id
+ * @desc    Update a note with optional image
+ * @access  Private
+ */
+router.put('/:id', noteImageUpload.single('image'), updateNote);
+
+/**
+ * @route   DELETE /api/notes/:id
+ * @desc    Delete a note and its associated image
+ * @access  Private
+ */
+router.delete('/:id', deleteNote);
+
+/**
+ * @route   PATCH /api/notes/:id/tags
+ * @desc    Add or remove tags from a note
+ * @access  Private
+ */
+router.patch('/:id/tags', updateNoteTags);
+
+/**
+ * @route   PATCH /api/notes/:id/pin
+ * @desc    Toggle pin status of a note
+ * @access  Private
+ */
+router.patch('/:id/pin', toggleNotePin);
+
+/**
+ * @route   PATCH /api/notes/:id/public
+ * @desc    Toggle public status of a note
+ * @access  Private
+ */
+router.patch('/:id/public', toggleNotePublic);
 
 module.exports = router;

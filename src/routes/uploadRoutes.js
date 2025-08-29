@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
-const { uploadImage, getImage, deleteImage, upload } = require('../controllers/uploadController');
+const { uploadImage, getImage, deleteImage, upload, flexibleUpload } = require('../controllers/uploadController');
 
 const router = express.Router();
 
@@ -14,23 +14,23 @@ if (process.env.NODE_ENV === 'development') {
 
 /**
  * @route   POST /api/upload
- * @desc    Upload and preprocess an image
+ * @desc    Upload and preprocess an image or PDF file
  * @access  Private
  */
-router.post('/', upload.single('image'), uploadImage);
+router.post('/', flexibleUpload, uploadImage);
 
 /**
- * @route   GET /api/upload/:imageId
- * @desc    Get image information by ID
+ * @route   GET /api/upload/:fileId
+ * @desc    Get file information by ID
  * @access  Private
  */
-router.get('/:imageId', getImage);
+router.get('/:fileId', getImage);
 
 /**
- * @route   DELETE /api/upload/:imageId
- * @desc    Delete an image
+ * @route   DELETE /api/upload/:fileId
+ * @desc    Delete a file
  * @access  Private
  */
-router.delete('/:imageId', deleteImage);
+router.delete('/:fileId', deleteImage);
 
 module.exports = router;

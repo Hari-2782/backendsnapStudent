@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 
 const evidenceSchema = new mongoose.Schema({
-  imageUrl: {
+  fileUrl: {
     type: String,
     required: true
   },
-  originalImageId: {
+  originalFileId: {
     type: String,
     required: true
   },
@@ -28,7 +28,7 @@ const evidenceSchema = new mongoose.Schema({
   },
   ocrMethod: {
     type: String,
-    enum: ['tesseract', 'trocr', 'paddleocr', 'im2latex'],
+    enum: ['tesseract', 'trocr', 'paddleocr', 'im2latex', 'pdf-parse', 'qwen-vl-fallback'],
     required: true
   },
   contentType: {
@@ -75,7 +75,7 @@ const evidenceSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-evidenceSchema.index({ originalImageId: 1 });
+evidenceSchema.index({ originalFileId: 1 });
 evidenceSchema.index({ ocrConfidence: 1 });
 evidenceSchema.index({ contentType: 1 });
 evidenceSchema.index({ 'usage.totalReferences': -1 });

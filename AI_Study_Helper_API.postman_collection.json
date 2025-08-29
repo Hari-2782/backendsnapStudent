@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "AI Study Helper Backend API - Complete Collection",
-    "description": "Complete API collection for testing the AI Study Helper backend with all endpoints including OCR/NLP pipeline, chat, sessions, bookmarks, calendar, and more",
+    "description": "Complete API collection for testing the AI Study Helper backend with all endpoints including OCR/NLP pipeline, chat, sessions, bookmarks, calendar with progress tracking, notes with image support, mindmap generation with AI explanations, and quiz system with analytics",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -42,6 +42,21 @@
     },
     {
       "key": "calendarEntryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "noteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "mindmapId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "quizId",
       "value": "",
       "type": "string"
     }
@@ -204,7 +219,7 @@
               "mode": "formdata",
               "formdata": [
                 {
-                  "key": "image",
+                  "key": "file",
                   "type": "file",
                   "src": []
                 }
@@ -790,7 +805,7 @@
       "name": "Calendar",
       "item": [
         {
-          "name": "Create Calendar Entry",
+          "name": "Create Task",
           "request": {
             "method": "POST",
             "header": [
@@ -801,12 +816,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Study Session\",\n  \"description\": \"Review mathematics concepts\",\n  \"startTime\": \"2024-12-20T10:00:00Z\",\n  \"endTime\": \"2024-12-20T11:00:00Z\",\n  \"type\": \"study\",\n  \"priority\": \"high\",\n  \"reminder\": true,\n  \"reminderTime\": \"2024-12-20T09:45:00Z\"\n}"
+              "raw": "{\n  \"title\": \"Mathematics Study Session\",\n  \"subject\": \"Mathematics\",\n  \"topic\": \"Calculus\",\n  \"startDate\": \"2024-12-20T10:00:00Z\",\n  \"duration\": 120,\n  \"priority\": \"high\",\n  \"status\": \"planned\",\n  \"notes\": \"Study limits and derivatives\",\n  \"tags\": [\"math\", \"calculus\", \"study\"],\n  \"color\": \"#ef4444\",\n  \"emoji\": \"📐\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/calendar/create",
+              "raw": "{{baseUrl}}/api/calendar",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "create"]
+              "path": ["api", "calendar"]
             }
           },
           "event": [
@@ -816,7 +831,7 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "    const response = pm.response.json();",
-                  "    pm.collectionVariables.set('calendarEntryId', response.entry._id);",
+                  "    pm.collectionVariables.set('calendarEntryId', response.task._id);",
                   "}"
                 ]
               }
@@ -824,43 +839,49 @@
           ]
         },
         {
-          "name": "Get Calendar Entries",
+          "name": "Get All Tasks",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/calendar/entries",
+              "raw": "{{baseUrl}}/api/calendar?page=1&limit=10&sortBy=startDate&sortOrder=asc",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "entries"]
+              "path": ["api", "calendar"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "startDate"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc"
+                }
+              ]
             }
           }
         },
         {
-          "name": "Get Upcoming Entries",
+          "name": "Get Task by ID",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/calendar/upcoming",
+              "raw": "{{baseUrl}}/api/calendar/{{calendarEntryId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "upcoming"]
+              "path": ["api", "calendar", "{{calendarEntryId}}"]
             }
           }
         },
         {
-          "name": "Get Calendar Stats",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/calendar/stats",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "stats"]
-            }
-          }
-        },
-        {
-          "name": "Update Calendar Entry",
+          "name": "Update Task",
           "request": {
             "method": "PUT",
             "header": [
@@ -871,31 +892,31 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Updated Study Session\",\n  \"description\": \"Updated description\",\n  \"startTime\": \"2024-12-20T11:00:00Z\",\n  \"endTime\": \"2024-12-20T12:00:00Z\",\n  \"priority\": \"medium\"\n}"
+              "raw": "{\n  \"title\": \"Advanced Mathematics Study Session\",\n  \"notes\": \"Study limits, derivatives, and integrals\",\n  \"priority\": \"urgent\",\n  \"tags\": [\"math\", \"calculus\", \"advanced\", \"study\"]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/calendar/entry/{{calendarEntryId}}",
+              "raw": "{{baseUrl}}/api/calendar/{{calendarEntryId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "entry", "{{calendarEntryId}}"]
+              "path": ["api", "calendar", "{{calendarEntryId}}"]
             }
           }
         },
         {
-          "name": "Delete Calendar Entry",
+          "name": "Delete Task",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/calendar/entry/{{calendarEntryId}}",
+              "raw": "{{baseUrl}}/api/calendar/{{calendarEntryId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "entry", "{{calendarEntryId}}"]
+              "path": ["api", "calendar", "{{calendarEntryId}}"]
             }
           }
         },
         {
-          "name": "Bulk Create Entries",
+          "name": "Mark Task as Completed",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -904,12 +925,133 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"title\": \"Study Session 1\",\n    \"description\": \"Mathematics review\",\n    \"startTime\": \"2024-12-21T10:00:00Z\",\n    \"endTime\": \"2024-12-21T11:00:00Z\",\n    \"type\": \"study\"\n  },\n  {\n    \"title\": \"Study Session 2\",\n    \"description\": \"Physics review\",\n    \"startTime\": \"2024-12-22T14:00:00Z\",\n    \"endTime\": \"2024-12-22T15:00:00Z\",\n    \"type\": \"study\"\n  }\n]"
+              "raw": "{\n  \"actualDuration\": 110\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/calendar/bulk-create",
+              "raw": "{{baseUrl}}/api/calendar/{{calendarEntryId}}/complete",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "calendar", "bulk-create"]
+              "path": ["api", "calendar", "{{calendarEntryId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Mark Task as Incomplete",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/{{calendarEntryId}}/incomplete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "{{calendarEntryId}}", "incomplete"]
+            }
+          }
+        },
+        {
+          "name": "Get Upcoming Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/upcoming?limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "upcoming"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tasks by Date Range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/range?startDate=2024-12-20T00:00:00Z&endDate=2024-12-27T23:59:59Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "range"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-12-20T00:00:00Z"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-27T23:59:59Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Weekly Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/progress/weekly",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "progress", "weekly"]
+            }
+          }
+        },
+        {
+          "name": "Get Monthly Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/progress/monthly",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "progress", "monthly"]
+            }
+          }
+        },
+        {
+          "name": "Get Overall Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/progress/overall",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "progress", "overall"]
+            }
+          }
+        },
+        {
+          "name": "Get Tasks by Subject",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/progress/subject/Mathematics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "progress", "subject", "Mathematics"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Update Task Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"taskIds\": [\"{{calendarEntryId}}\"],\n  \"status\": \"in-progress\",\n  \"isCompleted\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/bulk-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "bulk-status"]
             }
           }
         }
@@ -919,9 +1061,180 @@
       "name": "Notes",
       "item": [
         {
-          "name": "Create/Update Note",
+          "name": "Create Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Study Notes",
+                  "type": "text"
+                },
+                {
+                  "key": "content",
+                  "value": "Important notes about mathematics concepts including calculus, derivatives, and integrals.",
+                  "type": "text"
+                },
+                {
+                  "key": "tags",
+                  "value": "math,important,study,calculus",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "study",
+                  "type": "text"
+                },
+                {
+                  "key": "priority",
+                  "value": "high",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "published",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('noteId', response.note._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Notes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes?page=1&limit=10&sortBy=updatedAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "updatedAt"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Note by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Note",
           "request": {
             "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Updated Study Notes",
+                  "type": "text"
+                },
+                {
+                  "key": "content",
+                  "value": "Updated content with additional information about advanced calculus concepts.",
+                  "type": "text"
+                },
+                {
+                  "key": "tags",
+                  "value": "math,important,study,calculus,advanced",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "study",
+                  "type": "text"
+                },
+                {
+                  "key": "priority",
+                  "value": "medium",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Note",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Add Tags to Note",
+          "request": {
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -930,12 +1243,95 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Study Notes\",\n  \"content\": \"Important notes about mathematics concepts\",\n  \"tags\": [\"math\", \"important\", \"study\"]\n}"
+              "raw": "{\n  \"action\": \"add\",\n  \"tags\": [\"neural-networks\", \"computer-vision\"]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/notes/note_123",
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}/tags",
               "host": ["{{baseUrl}}"],
-              "path": ["notes", "note_123"]
+              "path": ["api", "notes", "{{noteId}}", "tags"]
+            }
+          }
+        },
+        {
+          "name": "Remove Tags from Note",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"remove\",\n  \"tags\": [\"test\", \"updated\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}/tags",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}", "tags"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Note Pin Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}/pin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}", "pin"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Note Public Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}", "public"]
+            }
+          }
+        },
+        {
+          "name": "Search Notes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/search?q=machine learning&category=study&tags=AI",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "machine learning"
+                },
+                {
+                  "key": "category",
+                  "value": "study"
+                },
+                {
+                  "key": "tags",
+                  "value": "AI"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Note Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "stats"]
             }
           }
         }
@@ -945,7 +1341,32 @@
       "name": "Mindmap",
       "item": [
         {
-          "name": "Generate Mindmap from Image",
+          "name": "Generate Mindmap",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mindmap", "{{imageId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('mindmapId', response.mindmap.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Mindmap",
           "request": {
             "method": "GET",
             "header": [],
@@ -957,14 +1378,173 @@
           }
         },
         {
-          "name": "Get Mindmap Data",
+          "name": "Get Node Details",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/mindmap",
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}/node/{{mindmapId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["mindmap"]
+              "path": ["api", "mindmap", "{{imageId}}", "node", "{{mindmapId}}"]
+            }
+          }
+        },
+        {
+          "name": "Add Node",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Topic\",\n  \"content\": \"Additional information about this topic\",\n  \"parentId\": \"{{mindmapId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}/node",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mindmap", "{{imageId}}", "node"]
+            }
+          }
+        },
+        {
+          "name": "Update Node",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Topic\",\n  \"content\": \"Updated content with more details\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}/node/{{mindmapId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mindmap", "{{imageId}}", "node", "{{mindmapId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Node",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}/node/{{mindmapId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mindmap", "{{imageId}}", "node", "{{mindmapId}}"]
+            }
+          }
+        },
+        {
+          "name": "Explain Node with AI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Please explain this concept in detail with examples\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mindmap/{{imageId}}/node/{{mindmapId}}/explain",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mindmap", "{{imageId}}", "node", "{{mindmapId}}", "explain"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quiz",
+      "item": [
+        {
+          "name": "Generate Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"difficulty\": \"medium\",\n  \"questionCount\": 5,\n  \"topic\": \"Mathematics\",\n  \"questionTypes\": [\"multiple-choice\", \"true-false\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/{{imageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "{{imageId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('quizId', response.quiz.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Quiz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/{{quizId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "{{quizId}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit Quiz Answers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": {\n    \"question1\": \"A\",\n    \"question2\": \"true\",\n    \"question3\": \"C\",\n    \"question4\": \"false\",\n    \"question5\": \"B\"\n  },\n  \"timeSpent\": 300\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/{{quizId}}/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "{{quizId}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Get Quiz Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/quiz/{{quizId}}/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "quiz", "{{quizId}}", "analytics"]
             }
           }
         }

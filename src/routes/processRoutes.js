@@ -9,16 +9,16 @@ const router = express.Router();
 
 /**
  * @route   POST /api/process
- * @desc    Process image through OCR → NLP → embeddings pipeline
+ * @desc    Process file (image or PDF) through OCR/NLP → embeddings pipeline
  * @access  Public (for development testing)
  */
-router.post('/', processController.processImage.bind(processController));
+router.post('/', processController.processFile.bind(processController));
 
 /**
- * @route   GET /api/process/status/:imageId
- * @desc    Get processing status for an image
+ * @route   GET /api/process/status/:fileId
+ * @desc    Get processing status for a file
  * @access  Public (for development testing)
  */
-router.get('/status/:imageId', processController.getProcessingStatus.bind(processController));
+router.get('/status/:fileId', processController.getProcessingStatus.bind(processController));
 
 module.exports = router;
