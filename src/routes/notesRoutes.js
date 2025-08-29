@@ -13,26 +13,10 @@ const {
   searchNotes
 } = require('../controllers/notesController');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 
-// Ensure uploads directory exists
-const uploadsDir = 'uploads/notes';
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for note image uploads
+// Configure multer for note image uploads (memory storage for Vercel compatibility)
 const noteImageUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-  }),
+  storage: multer.memoryStorage(), // Use memory storage instead of disk storage
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
     files: 1

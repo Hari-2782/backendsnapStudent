@@ -12,6 +12,15 @@ console.log('📝 Notes Controller: Using centralized Cloudinary service');
 const createNote = async (req, res) => {
   try {
     const { title, content, tags, category, priority, status, isPublic, isPinned } = req.body;
+    
+    // Handle development mode where user might not be authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const userId = req.user._id;
 
     // Validate required fields
@@ -26,8 +35,11 @@ const createNote = async (req, res) => {
     let imageData = null;
     if (req.file) {
       try {
+        // Convert buffer to base64 for Cloudinary upload
+        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        
         // Upload image to Cloudinary
-        const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+        const uploadResult = await cloudinary.uploader.upload(base64Image, {
           folder: 'ai-study-helper/notes',
           public_id: `note_${uuidv4()}`,
           transformation: [
@@ -92,6 +104,13 @@ const createNote = async (req, res) => {
  */
 const getNotes = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const userId = req.user._id;
     const {
       page = 1,
@@ -166,6 +185,13 @@ const getNotes = async (req, res) => {
  */
 const getNoteById = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const { id } = req.params;
     const userId = req.user._id;
 
@@ -199,6 +225,13 @@ const getNoteById = async (req, res) => {
  */
 const updateNote = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const { id } = req.params;
     const userId = req.user._id;
     const updateData = req.body;
@@ -220,8 +253,11 @@ const updateNote = async (req, res) => {
           await cloudinary.uploader.destroy(note.image.publicId);
         }
 
+        // Convert buffer to base64 for Cloudinary upload
+        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        
         // Upload new image
-        const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+        const uploadResult = await cloudinary.uploader.upload(base64Image, {
           folder: 'ai-study-helper/notes',
           public_id: `note_${uuidv4()}`,
           transformation: [
@@ -274,6 +310,13 @@ const updateNote = async (req, res) => {
  */
 const deleteNote = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const { id } = req.params;
     const userId = req.user._id;
 
@@ -318,6 +361,13 @@ const deleteNote = async (req, res) => {
  */
 const updateNoteTags = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const { id } = req.params;
     const { action, tags } = req.body; // action: 'add' or 'remove'
     const userId = req.user._id;
@@ -365,6 +415,13 @@ const updateNoteTags = async (req, res) => {
  */
 const toggleNotePin = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const { id } = req.params;
     const userId = req.user._id;
 
@@ -401,6 +458,13 @@ const toggleNotePin = async (req, res) => {
  */
 const toggleNotePublic = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const { id } = req.params;
     const userId = req.user._id;
 
@@ -437,6 +501,13 @@ const toggleNotePublic = async (req, res) => {
  */
 const getNoteStats = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const userId = req.user._id;
 
     const stats = await Note.getUserStats(userId);
@@ -469,6 +540,13 @@ const getNoteStats = async (req, res) => {
  */
 const searchNotes = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please provide a valid JWT token in the Authorization header.'
+      });
+    }
+    
     const userId = req.user._id;
     const { q, category, tags, status } = req.query;
 

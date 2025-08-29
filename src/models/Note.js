@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 
 const noteSchema = new mongoose.Schema({
+  noteId: {
+    type: String,
+    unique: true,
+    default: function() {
+      return `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+  },
   title: {
     type: String,
     required: [true, 'Title is required'],
@@ -67,6 +74,7 @@ const noteSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
+noteSchema.index({ noteId: 1 }, { unique: true });
 noteSchema.index({ userId: 1, createdAt: -1 });
 noteSchema.index({ userId: 1, tags: 1 });
 noteSchema.index({ userId: 1, category: 1 });
