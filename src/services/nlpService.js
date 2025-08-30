@@ -556,10 +556,10 @@ EDUCATIONAL INSIGHTS: [What students should learn and how this fits into a broad
          mcqs.push({
            question: `Which of the following volcanic features are mentioned in this content?`,
            options: [
-             volcanicConcepts.slice(0, 3).join(', '),
-             'Only general geological terms',
-             'Only non-volcanic features',
-             'No specific features mentioned'
+             `A) ${volcanicConcepts.slice(0, 3).join(', ')}`,
+             'B) Only general geological terms',
+             'C) Only non-volcanic features',
+             'D) No specific features mentioned'
            ],
            correctAnswer: 'A',
            explanation: `The content specifically discusses ${volcanicConcepts.slice(0, 3).join(', ')} as volcanic features.`
@@ -571,10 +571,10 @@ EDUCATIONAL INSIGHTS: [What students should learn and how this fits into a broad
          mcqs.push({
            question: `What are the main concepts discussed in this content?`,
            options: [
-             concepts.slice(0, 3).join(', '),
-             'General information only',
-             'Technical diagrams only',
-             'Mathematical formulas only'
+             `A) ${concepts.slice(0, 3).join(', ')}`,
+             'B) General information only',
+             'C) Technical diagrams only',
+             'D) Mathematical formulas only'
            ],
            correctAnswer: 'A',
            explanation: `The content discusses ${concepts.slice(0, 3).join(', ')} as extracted by Qwen Vision AI.`
@@ -584,12 +584,12 @@ EDUCATIONAL INSIGHTS: [What students should learn and how this fits into a broad
        if (evidence.length > 0) {
          // MCQ 3: About processing method
          mcqs.push({
-           question: `How was this content extracted from the image?`,
+           question: `How was this content extracted from this image?`,
            options: [
-             'Qwen Vision AI technology',
-             'Traditional OCR only',
-             'Manual transcription',
-             'Audio recognition'
+             'A) Qwen Vision AI technology',
+             'B) Traditional OCR only',
+             'C) Manual transcription',
+             'D) Audio recognition'
            ],
            correctAnswer: 'A',
            explanation: 'This content was extracted using advanced Qwen Vision AI technology, ensuring high accuracy and quality.'
@@ -600,10 +600,10 @@ EDUCATIONAL INSIGHTS: [What students should learn and how this fits into a broad
        mcqs.push({
          question: `What type of educational content is this?`,
          options: [
-           'Comprehensive learning material',
-           'Basic text only',
-           'Visual diagrams only',
-           'Simple notes'
+           'A) Comprehensive learning material',
+           'B) Basic text only',
+           'C) Visual diagrams only',
+           'D) Simple notes'
          ],
          correctAnswer: 'A',
          explanation: 'This is comprehensive learning material that was accurately extracted and processed using Qwen Vision AI technology.'
@@ -979,7 +979,12 @@ EDUCATIONAL INSIGHTS: [What students should learn and how this fits into a broad
       console.error('Failed to parse MCQs from text:', error);
       return [{
         question: 'What type of content is shown in this image?',
-        options: ['Educational material', 'Technical diagram', 'Mathematical formula', 'Scientific concept'],
+        options: [
+          'A) Educational material', 
+          'B) Technical diagram', 
+          'C) Mathematical formula', 
+          'D) Scientific concept'
+        ],
         correctAnswer: 'A',
         explanation: 'The image contains educational content that was analyzed.'
       }];
@@ -1148,7 +1153,10 @@ Generate questions now:`;
           for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
             if (line.match(/^[A-D]\)/)) {
-              options.push(line.substring(2).trim());
+              // Extract the option text and format it with ABC label
+              const optionText = line.substring(2).trim();
+              const label = line.charAt(0); // A, B, C, or D
+              options.push(`${label}) ${optionText}`);
             } else if (line.startsWith('Correct:')) {
               correctAnswer = line.substring(8).trim();
             } else if (line.startsWith('Explanation:')) {
@@ -1327,10 +1335,10 @@ Generate questions now:`;
         mcqs.push({
           question: 'What type of content is shown in this image?',
           options: [
-            'Educational material',
-            'Technical diagram', 
-            'Mathematical formula',
-            'Scientific concept'
+            'A) Educational material',
+            'B) Technical diagram', 
+            'C) Mathematical formula',
+            'D) Scientific concept'
           ],
           correctAnswer: 'A',
           explanation: 'The image contains educational content with text and diagrams.'
@@ -1341,10 +1349,10 @@ Generate questions now:`;
         mcqs.push({
           question: 'How many text regions were identified in the image?',
           options: [
-            `${evidence.length} regions`,
-            'Less than 5 regions',
-            'More than 20 regions',
-            'Unable to determine'
+            `A) ${evidence.length} regions`,
+            'B) Less than 5 regions',
+            'C) More than 20 regions',
+            'D) Unable to determine'
           ],
           correctAnswer: 'A',
           explanation: `OCR processing identified ${evidence.length} distinct text regions in the image.`
@@ -1354,10 +1362,10 @@ Generate questions now:`;
       mcqs.push({
         question: 'What is the primary purpose of this image?',
         options: [
-          'To explain a concept',
-          'To show a diagram',
-          'To present information',
-          'All of the above'
+          'A) To explain a concept',
+          'B) To show a diagram',
+          'C) To present information',
+          'D) All of the above'
         ],
         correctAnswer: 'D',
         explanation: 'Educational images typically serve multiple purposes including explanation, visualization, and information presentation.'
@@ -1368,7 +1376,12 @@ Generate questions now:`;
     } catch (error) {
       return [{
         question: 'What was extracted from this image?',
-        options: ['Text content', 'Visual elements', 'Both text and visual', 'Unable to determine'],
+        options: [
+          'A) Text content', 
+          'B) Visual elements', 
+          'C) Both text and visual', 
+          'D) Unable to determine'
+        ],
         correctAnswer: 'C',
         explanation: 'The image processing extracted both textual and visual information.'
       }];
@@ -1567,7 +1580,12 @@ Generate questions now:`;
             explanation: 'The system successfully identified and extracted text content from the uploaded image. While advanced analysis was not available, the basic content extraction completed successfully.',
             mcqs: [{
               question: 'Was the image processing successful?',
-              options: ['Yes', 'No', 'Partially', 'Unable to determine'],
+              options: [
+                'A) Yes', 
+                'B) No', 
+                'C) Partially', 
+                'D) Unable to determine'
+              ],
               correctAnswer: 'A',
               explanation: 'The image was successfully uploaded and text content was extracted, indicating successful processing.'
             }],

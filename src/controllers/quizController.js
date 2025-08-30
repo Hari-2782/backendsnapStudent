@@ -2,6 +2,7 @@ const Evidence = require('../models/Evidence');
 const Quiz = require('../models/Quiz');
 const dashscopeService = require('../services/dashscopeService');
 const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
 /**
  * Generate quiz from image/PDF content
@@ -59,76 +60,50 @@ const generateQuiz = async (req, res) => {
       });
     }
 
-    // Generate quiz using DashScope
-    const quizPrompt = `Generate a ${difficulty} difficulty quiz with ${questionCount} questions based on this chemistry content.
+    // Generate quiz using DashScope (Primary) with OpenRouter fallback
+    let quizData = null;
+    let method = 'fallback';
     
-    Question types: ${questionTypes.join(', ')}
-    Topics to focus on: ${topics.length > 0 ? topics.join(', ') : 'Physical Chemistry, Colligative Properties'}
-    
-    Return a JSON object with this structure:
-    {
-      "title": "Chemistry Quiz",
-      "description": "Quiz on Physical Chemistry and Colligative Properties",
-      "difficulty": "${difficulty}",
-      "questionCount": ${questionCount},
-      "questions": [
-        {
-          "id": "q1",
-          "type": "multiple-choice",
-          "question": "Question text",
-          "options": ["A", "B", "C", "D"],
-          "correctAnswer": "A",
-          "explanation": "Why this is correct",
-          "topic": "Related topic"
-        }
-      ]
-    }
-    
-    Content: ${textContent.substring(0, 2000)}`;
-
-    console.log('🧪 Calling DashScope for quiz generation...');
-    console.log('📝 Text content length:', textContent.length);
-    console.log('🔍 First 200 chars:', textContent.substring(0, 200));
-
-    const quizResult = await dashscopeService.processRAG(
-      quizPrompt,
-      [{ text: textContent.substring(0, 1500) }],
-      null,
-      { 
-        maxTokens: 2000, 
-        temperature: 0.3 
-      }
-    );
-
-    console.log('🤖 DashScope response:', quizResult);
-
-    if (!quizResult.success) {
-      console.log('❌ DashScope failed, using fallback');
-      throw new Error(`Quiz generation failed: ${quizResult.error}`);
-    }
-
-    // Parse AI response and create quiz structure
-    let quizData = createFallbackQuiz(textContent, questionCount, difficulty);
-    
+    // Try DashScope first
     try {
-      if (quizResult.response) {
-        const jsonMatch = quizResult.response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsedQuiz = JSON.parse(jsonMatch[0]);
-          console.log('✅ Parsed quiz from AI:', parsedQuiz);
-          
-          // Validate the parsed quiz structure
-          if (parsedQuiz.questions && Array.isArray(parsedQuiz.questions) && parsedQuiz.questions.length > 0) {
-            quizData = parsedQuiz;
-            console.log('✅ Using AI-generated quiz');
-          } else {
-            console.log('⚠️ AI quiz has no questions, using fallback');
-          }
-        }
+      console.log('🧪 Trying DashScope for quiz generation...');
+      quizData = await generateQuizWithDashScope(textContent, questionCount, difficulty, questionTypes, topics);
+      if (quizData) {
+        method = 'dashscope';
+        console.log('✅ DashScope quiz generation successful');
       }
-    } catch (parseError) {
-      console.log('❌ JSON parse error, using fallback quiz structure:', parseError.message);
+    } catch (dashscopeError) {
+      console.log('❌ DashScope failed:', dashscopeError.message);
     }
+
+    // If DashScope fails, try OpenRouter fallback
+    if (!quizData) {
+      try {
+        console.log('🔄 Trying OpenRouter fallback for quiz generation...');
+        quizData = await generateQuizWithOpenRouter(textContent, questionCount, difficulty, questionTypes, topics);
+        if (quizData) {
+          method = 'openrouter-fallback';
+          console.log('✅ OpenRouter fallback successful');
+        }
+      } catch (openrouterError) {
+        console.log('❌ OpenRouter fallback failed:', openrouterError.message);
+      }
+    }
+
+    // If both fail, use fallback quiz
+    if (!quizData) {
+      console.log('⚠️ All AI services failed, using fallback quiz');
+      quizData = createFallbackQuiz(textContent, questionCount, difficulty);
+      method = 'fallback';
+    }
+
+    // Ensure all MCQ options are properly formatted with ABC labels
+    quizData.questions = quizData.questions.map(question => {
+      if (question.type === 'multiple-choice' && question.options) {
+        question.options = formatQuizOptions(question.options);
+      }
+      return question;
+    });
 
     // Add metadata
     quizData.id = uuidv4();
@@ -137,6 +112,7 @@ const generateQuiz = async (req, res) => {
     quizData.generatedAt = new Date();
     quizData.evidenceCount = evidence.length;
     quizData.sourceText = textContent.substring(0, 300) + '...';
+    quizData.method = method;
 
     // Ensure all required fields are present
     const quizToSave = {
@@ -151,7 +127,7 @@ const generateQuiz = async (req, res) => {
       generatedAt: quizData.generatedAt,
       evidenceCount: quizData.evidenceCount,
       sourceText: quizData.sourceText,
-      method: quizData.method || 'ai-generated',
+      method: quizData.method || 'fallback',
       topics: quizData.topics || []
     };
 
@@ -159,7 +135,8 @@ const generateQuiz = async (req, res) => {
       id: quizToSave.id,
       imageId: quizToSave.imageId,
       userId: quizToSave.userId,
-      questionCount: quizToSave.questionCount
+      questionCount: quizToSave.questionCount,
+      method: quizToSave.method
     });
 
     // Store quiz in database
@@ -200,13 +177,12 @@ const generateQuiz = async (req, res) => {
 const getQuiz = async (req, res) => {
   try {
     const { quizId } = req.params;
-    const requestingUserId = req.user?._id || 'dev-user-123';
+    const userId = req.user?._id || 'dev-user-123';
 
-    console.log('🔍 Getting quiz by ID:', quizId);
+    console.log(`📚 Getting quiz ${quizId} for user ${userId}`);
 
-    // Get quiz from database
-    const quiz = await Quiz.findOne({ id: quizId });
-    
+    const quiz = await Quiz.findOne({ id: quizId, userId });
+
     if (!quiz) {
       return res.status(404).json({
         success: false,
@@ -214,19 +190,10 @@ const getQuiz = async (req, res) => {
       });
     }
 
-    // Check access permissions
-    if (process.env.NODE_ENV === 'development' || requestingUserId === quiz.userId) {
-      res.status(200).json({
-        success: true,
-        quiz,
-        message: 'Quiz retrieved successfully'
-      });
-    } else {
-      res.status(403).json({
-        success: false,
-        error: 'Access denied. You can only view your own quizzes.'
-      });
-    }
+    res.status(200).json({
+      success: true,
+      quiz
+    });
 
   } catch (error) {
     console.error('❌ Get quiz error:', error);
@@ -297,20 +264,26 @@ const getQuizAnalytics = async (req, res) => {
     const { quizId } = req.params;
     const userId = req.user?._id || 'dev-user-123';
 
-    // In production, you'd calculate analytics from stored results
+    console.log(`📊 Getting analytics for quiz ${quizId}`);
+
+    const quiz = await Quiz.findOne({ id: quizId, userId });
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        error: 'Quiz not found'
+      });
+    }
+
     const analytics = {
       quizId,
-      userId,
-      totalAttempts: Math.floor(Math.random() * 50) + 1,
-      averageScore: Math.floor(Math.random() * 30) + 70,
-      highestScore: Math.floor(Math.random() * 20) + 80,
-      lowestScore: Math.floor(Math.random() * 30) + 40,
-      questionDifficulty: {
-        easy: Math.floor(Math.random() * 20) + 80,
-        medium: Math.floor(Math.random() * 30) + 60,
-        hard: Math.floor(Math.random() * 40) + 40
-      },
-      generatedAt: new Date()
+      totalQuestions: quiz.questionCount,
+      difficulty: quiz.difficulty,
+      topics: quiz.topics,
+      attempts: quiz.attempts || 0,
+      averageScore: quiz.averageScore || 0,
+      generatedAt: quiz.generatedAt,
+      method: quiz.method
     };
 
     res.status(200).json({
@@ -319,12 +292,31 @@ const getQuizAnalytics = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Get quiz analytics error:', error);
+    console.error('❌ Quiz analytics error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve quiz analytics'
     });
   }
+};
+
+/**
+ * Format quiz options with ABC labels
+ */
+const formatQuizOptions = (options) => {
+  if (!Array.isArray(options)) return options;
+  
+  return options.map((option, index) => {
+    const label = String.fromCharCode(65 + index); // A, B, C, D...
+    
+    // Check if option already has ABC label
+    if (option.match(/^[A-D]\)/)) {
+      return option; // Already formatted
+    }
+    
+    // Add ABC label if not present
+    return `${label}) ${option}`;
+  });
 };
 
 /**
@@ -338,60 +330,60 @@ const createFallbackQuiz = (textContent, questionCount = 5, difficulty = 'medium
     {
       question: "What is the relationship between molality (m) and boiling point elevation?",
       options: [
-        "ΔTb = kb × m",
-        "ΔTb = kb / m", 
-        "ΔTb = kb + m",
-        "ΔTb = kb - m"
+        "A) ΔTb = kb × m",
+        "B) ΔTb = kb / m", 
+        "C) ΔTb = kb + m",
+        "D) ΔTb = kb - m"
       ],
-      correctAnswer: "ΔTb = kb × m",
+      correctAnswer: "A) ΔTb = kb × m",
       explanation: "Boiling point elevation is directly proportional to molality through the ebullioscopic constant (kb).",
       topic: "Boiling Point Elevation"
     },
     {
       question: "Which property decreases when a non-volatile solute is added to a solvent?",
       options: [
-        "Boiling point",
-        "Vapor pressure",
-        "Freezing point",
-        "Density"
+        "A) Boiling point",
+        "B) Vapor pressure",
+        "C) Freezing point",
+        "D) Density"
       ],
-      correctAnswer: "Vapor pressure",
+      correctAnswer: "B) Vapor pressure",
       explanation: "Adding a non-volatile solute decreases the vapor pressure of the solvent, leading to boiling point elevation.",
       topic: "Vapor Pressure"
     },
     {
       question: "What is the formula for freezing point depression?",
       options: [
-        "ΔTf = kf × m",
-        "ΔTf = kf / m",
-        "ΔTf = kf + m", 
-        "ΔTf = kf - m"
+        "A) ΔTf = kf × m",
+        "B) ΔTf = kf / m",
+        "C) ΔTf = kf + m", 
+        "D) ΔTf = kf - m"
       ],
-      correctAnswer: "ΔTf = kf × m",
+      correctAnswer: "A) ΔTf = kf × m",
       explanation: "Freezing point depression is directly proportional to molality through the cryoscopic constant (kf).",
       topic: "Freezing Point Depression"
     },
     {
       question: "What is osmotic pressure (π) related to?",
       options: [
-        "π = cST",
-        "π = c/S",
-        "π = c + S + T",
-        "π = c × S × T"
+        "A) π = cST",
+        "B) π = c/S",
+        "C) π = c + S + T",
+        "D) π = c × S × T"
       ],
-      correctAnswer: "π = cST",
+      correctAnswer: "A) π = cST",
       explanation: "Osmotic pressure equals concentration (c) times the gas constant (S) times temperature (T).",
       topic: "Osmotic Pressure"
     },
     {
       question: "What are colligative properties?",
       options: [
-        "Properties that depend on the number of solute particles",
-        "Properties that depend on the chemical nature of solute",
-        "Properties that depend on temperature only",
-        "Properties that depend on pressure only"
+        "A) Properties that depend on the number of solute particles",
+        "B) Properties that depend on the chemical nature of solute",
+        "C) Properties that depend on temperature only",
+        "D) Properties that depend on pressure only"
       ],
-      correctAnswer: "Properties that depend on the number of solute particles",
+      correctAnswer: "A) Properties that depend on the number of solute particles",
       explanation: "Colligative properties depend on the concentration of solute particles, not their chemical identity.",
       topic: "Colligative Properties"
     }
@@ -421,6 +413,168 @@ const createFallbackQuiz = (textContent, questionCount = 5, difficulty = 'medium
     generatedAt: new Date(),
     method: 'fallback'
   };
+};
+
+/**
+ * Generate quiz using DashScope
+ */
+const generateQuizWithDashScope = async (textContent, questionCount, difficulty, questionTypes, topics) => {
+  const quizPrompt = `Generate a ${difficulty} difficulty quiz with ${questionCount} questions based on this content.
+    
+Question types: ${questionTypes.join(', ')}
+Topics to focus on: ${topics.length > 0 ? topics.join(', ') : 'General topics from the content'}
+
+IMPORTANT: For multiple-choice questions, format ALL options with ABC labels like this:
+"options": [
+  "A) [First option]",
+  "B) [Second option]", 
+  "C) [Third option]",
+  "D) [Fourth option]"
+]
+
+Return a JSON object with this structure:
+{
+  "title": "Quiz Title",
+  "description": "Quiz description",
+  "difficulty": "${difficulty}",
+  "questionCount": ${questionCount},
+  "questions": [
+    {
+      "id": "q1",
+      "type": "multiple-choice",
+      "question": "Question text",
+      "options": [
+        "A) [Option A]",
+        "B) [Option B]",
+        "C) [Option C]",
+        "D) [Option D]"
+      ],
+      "correctAnswer": "A) [Option A]",
+      "explanation": "Why this is correct",
+      "topic": "Related topic"
+    }
+  ]
+}
+
+Content: ${textContent.substring(0, 2000)}`;
+
+  const quizResult = await dashscopeService.processRAG(
+    quizPrompt,
+    [{ text: textContent.substring(0, 1500) }],
+    null,
+    { 
+      maxTokens: 2000, 
+      temperature: 0.3 
+    }
+  );
+
+  if (!quizResult.success) {
+    throw new Error(`DashScope quiz generation failed: ${quizResult.error}`);
+  }
+
+  // Parse AI response
+  try {
+    const jsonMatch = quizResult.response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsedQuiz = JSON.parse(jsonMatch[0]);
+      
+      // Validate the parsed quiz structure
+      if (parsedQuiz.questions && Array.isArray(parsedQuiz.questions) && parsedQuiz.questions.length > 0) {
+        return parsedQuiz;
+      }
+    }
+    throw new Error('Invalid quiz structure from DashScope');
+  } catch (parseError) {
+    throw new Error(`Failed to parse DashScope response: ${parseError.message}`);
+  }
+};
+
+/**
+ * Generate quiz using OpenRouter fallback
+ */
+const generateQuizWithOpenRouter = async (textContent, questionCount, difficulty, questionTypes, topics) => {
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  if (!openRouterApiKey) {
+    throw new Error('OpenRouter API key not configured');
+  }
+
+  const quizPrompt = `Generate a ${difficulty} difficulty quiz with ${questionCount} questions based on this content.
+    
+Question types: ${questionTypes.join(', ')}
+Topics to focus on: ${topics.length > 0 ? topics.join(', ') : 'General topics from the content'}
+
+IMPORTANT: For multiple-choice questions, format ALL options with ABC labels like this:
+"options": [
+  "A) [First option]",
+  "B) [Second option]", 
+  "C) [Third option]",
+  "D) [Fourth option]"
+]
+
+Return a JSON object with this structure:
+{
+  "title": "Quiz Title",
+  "description": "Quiz description",
+  "difficulty": "${difficulty}",
+  "questionCount": ${questionCount},
+  "questions": [
+    {
+      "id": "q1",
+      "type": "multiple-choice",
+      "question": "Question text",
+      "options": [
+        "A) [Option A]",
+        "B) [Option B]",
+        "C) [Option C]",
+        "D) [Option D]"
+      ],
+      "correctAnswer": "A) [Option A]",
+      "explanation": "Why this is correct",
+      "topic": "Related topic"
+    }
+  ]
+}
+
+Content: ${textContent.substring(0, 2000)}`;
+
+  const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+    model: 'meta-llama/llama-3.2-11b-instruct:free',
+    messages: [
+      { role: 'user', content: quizPrompt }
+    ],
+    max_tokens: 2000,
+    temperature: 0.3,
+    top_p: 0.9
+  }, {
+    headers: {
+      'Authorization': `Bearer ${openRouterApiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://your-app-domain.com',
+      'X-Title': 'AI Study Helper'
+    },
+    timeout: 30000
+  });
+
+  if (response.data && response.data.choices && response.data.choices[0]) {
+    const content = response.data.choices[0].message.content;
+    
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsedQuiz = JSON.parse(jsonMatch[0]);
+        
+        // Validate the parsed quiz structure
+        if (parsedQuiz.questions && Array.isArray(parsedQuiz.questions) && parsedQuiz.questions.length > 0) {
+          return parsedQuiz;
+        }
+      }
+      throw new Error('Invalid quiz structure from OpenRouter');
+    } catch (parseError) {
+      throw new Error(`Failed to parse OpenRouter response: ${parseError.message}`);
+    }
+  }
+  
+  throw new Error('Invalid response from OpenRouter');
 };
 
 module.exports = {

@@ -178,9 +178,9 @@ class ChatController {
         return await this.generateVisionRAGResponse(message, context, options);
       }
       
-      // Otherwise use text-based RAG
-      console.log('📝 Using text-based RAG response');
-      return await this.generateTextRAGResponse(message, context, options);
+      // Otherwise use text-based RAG with DashScope primary + OpenRouter fallback
+      console.log('📝 Using text-based RAG response with DashScope primary + OpenRouter fallback');
+      return await this.generateTextRAGResponseWithFallback(message, context, options);
       
     } catch (error) {
       console.error('RAG response generation failed:', error);
@@ -364,6 +364,81 @@ class ChatController {
       
   } catch (error) {
       console.error('Text RAG response failed:', error);
+      console.log('🔄 Using fallback response due to error');
+      return this.generateFallbackResponse(message, context);
+    }
+  }
+
+  /**
+   * Generate text-based RAG response with DashScope primary + OpenRouter fallback
+   */
+  async generateTextRAGResponseWithFallback(message, context, options = {}) {
+    try {
+      // 1. Try DashScope primary
+      const dashscopeResponse = await dashscopeService.processRAG(message, context, null, options);
+      if (dashscopeResponse.success) {
+        console.log('✅ DashScope primary response successful');
+        return {
+          content: dashscopeResponse.response,
+          method: 'dashscope-primary',
+          model: dashscopeResponse.model,
+          contextUsed: {
+            sessions: context.sessions?.length || 0,
+            evidence: context.evidence?.length || 0,
+            chatHistory: context.chatHistory?.length || 0,
+            hasImage: false
+          }
+        };
+      }
+
+      // 2. If DashScope fails, try OpenRouter fallback
+      console.log('🔄 DashScope primary failed, trying OpenRouter fallback...');
+      const prompt = this.buildTextRAGPrompt(message, context);
+      const openRouterResponse = await axios.post(this.openRouterApiUrl, {
+        model: 'meta-llama/llama-3.2-11b-instruct:free',
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 1000,
+        temperature: 0.7,
+        top_p: 0.9
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.openRouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://your-app-domain.com',
+          'X-Title': 'AI Study Helper'
+        },
+        timeout: 30000
+      });
+
+      if (openRouterResponse.data && openRouterResponse.data.choices && openRouterResponse.data.choices[0]) {
+        const content = openRouterResponse.data.choices[0].message.content;
+        
+        // Validate content is not empty
+        if (!content || content.trim() === '') {
+          console.log('⚠️ OpenRouter fallback returned empty content, using fallback');
+          return this.generateFallbackResponse(message, context);
+        }
+        
+        return {
+          content: content.trim(),
+          method: 'openrouter-fallback',
+          model: 'meta-llama/llama-3.2-11b-instruct:free',
+          contextUsed: {
+            sessions: context.sessions?.length || 0,
+            evidence: context.evidence?.length || 0,
+            chatHistory: context.chatHistory?.length || 0,
+            hasImage: false
+          }
+        };
+      }
+      
+      console.log('⚠️ Both DashScope and OpenRouter fallback failed, using fallback');
+      return this.generateFallbackResponse(message, context);
+      
+    } catch (error) {
+      console.error('Text RAG response with fallback failed:', error);
       console.log('🔄 Using fallback response due to error');
       return this.generateFallbackResponse(message, context);
     }
