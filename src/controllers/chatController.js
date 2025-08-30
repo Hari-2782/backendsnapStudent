@@ -593,21 +593,27 @@ ${message}
         return;
       }
 
+      const sessionIdToUse = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       // Save user message
       await ChatHistoryEntry.create({
         userId,
-        sessionId: sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sessionId: sessionIdToUse,
         role: 'user',
-        text: userMessage.trim(), // Use 'text' field as required by model
+        text: userMessage.trim(),
+        content: userMessage.trim(), // Add content field as required
+        messageType: 'user_question',
         timestamp: new Date()
       });
 
       // Save assistant response
       await ChatHistoryEntry.create({
         userId,
-        sessionId: sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sessionId: sessionIdToUse,
         role: 'assistant',
-        text: assistantResponse.trim(), // Use 'text' field as required by model
+        text: assistantResponse.trim(),
+        content: assistantResponse.trim(), // Add content field as required
+        messageType: 'rag_response',
         timestamp: new Date()
       });
 

@@ -117,6 +117,7 @@ const generateQuiz = async (req, res) => {
     // Ensure all required fields are present
     const quizToSave = {
       id: quizData.id,
+      quizId: quizData.id, // Set quizId to match id to resolve database index conflict
       imageId: quizData.imageId,
       title: quizData.title || 'Generated Quiz',
       description: quizData.description || 'Quiz generated from content',
@@ -133,6 +134,7 @@ const generateQuiz = async (req, res) => {
 
     console.log('💾 Saving quiz to database:', {
       id: quizToSave.id,
+      quizId: quizToSave.quizId,
       imageId: quizToSave.imageId,
       userId: quizToSave.userId,
       questionCount: quizToSave.questionCount,
@@ -141,6 +143,11 @@ const generateQuiz = async (req, res) => {
 
     // Store quiz in database
     try {
+      // Final validation before saving
+      if (!quizToSave.id || !quizToSave.title || !quizToSave.questions || quizToSave.questions.length === 0) {
+        throw new Error(`Quiz validation failed: id=${!!quizToSave.id}, title=${!!quizToSave.title}, questions=${quizToSave.questions?.length || 0}`);
+      }
+
       const quizDoc = new Quiz(quizToSave);
       await quizDoc.save();
       console.log('✅ Quiz saved to database with ID:', quizDoc._id);

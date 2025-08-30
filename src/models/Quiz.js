@@ -45,6 +45,11 @@ const quizSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  quizId: {
+    type: String,
+    required: false, // Make it optional to avoid breaking existing data
+    index: true
+  },
   imageId: {
     type: String,
     required: true,
@@ -98,7 +103,7 @@ const quizSchema = new mongoose.Schema({
   },
   method: {
     type: String,
-    enum: ['ai-generated', 'fallback', 'manual'],
+    enum: ['ai-generated', 'fallback', 'manual', 'dashscope', 'openrouter-fallback'],
     default: 'ai-generated'
   },
   topics: {
